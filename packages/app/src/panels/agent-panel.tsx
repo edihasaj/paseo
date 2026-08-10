@@ -1623,6 +1623,10 @@ function ActiveAgentComposer({
     },
     [agentId, client],
   );
+  const goalSurfaceHeader = useMemo(
+    () => <GoalTrack goal={goal} onAction={handleGoalAction} />,
+    [goal, handleGoalAction],
+  );
   const workspaceAttachmentScopeKey = useWorkspaceAttachmentScopeKey({
     serverId,
     cwd,
@@ -1700,7 +1704,6 @@ function ActiveAgentComposer({
 
   return (
     <ReanimatedAnimated.View style={inputAreaStyle} onLayout={onInputAreaLayout}>
-      <GoalTrack goal={goal} onAction={handleGoalAction} />
       <Composer
         agentId={agentId}
         serverId={serverId}
@@ -1725,6 +1728,7 @@ function ActiveAgentComposer({
         onMessageSent={onMessageSent}
         onClientSlashCommand={handleClientSlashCommand}
         isCompactLayout={isCompactComposerLayout}
+        surfaceHeader={goalSurfaceHeader}
       />
     </ReanimatedAnimated.View>
   );

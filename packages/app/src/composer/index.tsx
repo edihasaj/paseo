@@ -955,6 +955,8 @@ interface ComposerProps {
   onAttentionPromptSend?: () => void;
   /** Controlled agent controls rendered in input area (draft flows). */
   agentControls?: DraftAgentControlsProps;
+  /** Compact contextual content rendered inside the bordered input surface, above the text. */
+  surfaceHeader?: React.ReactNode;
   /** Extra styles merged onto the message input wrapper (e.g. elevated background). */
   inputWrapperStyle?: import("react-native").ViewStyle;
   /** When true, a parent wrapper owns the keyboard shift, so the composer skips its own. */
@@ -1171,6 +1173,7 @@ function ComposerContentImpl({
   onAttentionInputFocus,
   onAttentionPromptSend,
   agentControls,
+  surfaceHeader,
   inputWrapperStyle,
   externalKeyboardShift,
   isCompactLayout: isCompactLayoutOverride,
@@ -2325,7 +2328,14 @@ function ComposerContentImpl({
                   onFocusChange={handleFocusChange}
                   onHeightChange={onComposerHeightChange}
                   inputWrapperStyle={inputWrapperStyle}
-                  attachmentSlot={attachmentTray}
+                  attachmentSlot={
+                    surfaceHeader || attachmentTray ? (
+                      <>
+                        {surfaceHeader}
+                        {attachmentTray}
+                      </>
+                    ) : null
+                  }
                   inputMode={inputMode}
                   readOnly={readOnly}
                   textReplacementKey={textReplacementKey}
