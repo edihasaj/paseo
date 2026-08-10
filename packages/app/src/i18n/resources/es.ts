@@ -131,6 +131,8 @@ export const es: TranslationResources = {
       dropImagesHere: "Suelta imágenes aquí",
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Editar mensaje en cola",
+      steerQueuedMessage: "Dirigir",
+      removeQueuedMessage: "Eliminar mensaje en cola",
       sendQueuedMessageNow: "Enviar mensaje en cola ahora",
       openImage: "Abrir imagen adjunta",
       removeImage: "Quitar imagen adjunta",
@@ -1743,7 +1745,7 @@ export const es: TranslationResources = {
   },
   goals: {
     status: {
-      active: "Activo",
+      active: "Persiguiendo objetivo",
       paused: "En pausa",
       blocked: "Bloqueado",
       usageLimited: "Límite de uso alcanzado",

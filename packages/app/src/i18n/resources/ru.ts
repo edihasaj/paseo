@@ -131,6 +131,8 @@ export const ru: TranslationResources = {
       dropImagesHere: "Скиньте изображения сюда",
       dropFilesHere: "Переместите файлы сюда",
       editQueuedMessage: "Изменить сообщение из очереди",
+      steerQueuedMessage: "Направить",
+      removeQueuedMessage: "Удалить сообщение из очереди",
       sendQueuedMessageNow: "Отправить сообщение из очереди сейчас",
       openImage: "Открыть прикрепленное изображение",
       removeImage: "Удалить прикрепленное изображение",
@@ -1727,7 +1729,7 @@ export const ru: TranslationResources = {
   },
   goals: {
     status: {
-      active: "Активна",
+      active: "Выполнение цели",
       paused: "Приостановлена",
       blocked: "Заблокирована",
       usageLimited: "Лимит использования",

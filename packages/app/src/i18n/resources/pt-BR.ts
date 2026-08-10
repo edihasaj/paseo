@@ -131,6 +131,8 @@ export const ptBR: TranslationResources = {
       dropImagesHere: "Solte imagens aqui",
       dropFilesHere: "Solte arquivos aqui",
       editQueuedMessage: "Editar mensagem na fila",
+      steerQueuedMessage: "Direcionar",
+      removeQueuedMessage: "Remover mensagem da fila",
       sendQueuedMessageNow: "Enviar mensagem da fila agora",
       openImage: "Abrir anexo de imagem",
       removeImage: "Remover anexo de imagem",
@@ -1729,7 +1731,7 @@ export const ptBR: TranslationResources = {
   },
   goals: {
     status: {
-      active: "Ativa",
+      active: "Perseguindo objetivo",
       paused: "Pausada",
       blocked: "Bloqueada",
       usageLimited: "Limite de uso atingido",
