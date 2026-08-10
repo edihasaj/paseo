@@ -1705,6 +1705,17 @@ export const en = {
     archiveFinishedAction: "Archive finished subagents",
     archiveFinishedRetry: "Retry ({{failed}}/{{total}})",
   },
+  goals: {
+    status: {
+      active: "Active",
+      paused: "Paused",
+      blocked: "Blocked",
+      usageLimited: "Usage limited",
+      budgetLimited: "Budget limited",
+      complete: "Complete",
+    },
+    actions: { pause: "Pause", resume: "Resume", clear: "Clear" },
+  },
   panels: {
     draft: {
       newAgent: "New Agent",

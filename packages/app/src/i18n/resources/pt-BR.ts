@@ -1727,6 +1727,17 @@ export const ptBR: TranslationResources = {
     archiveFinishedAction: "Arquivar subagentes concluídos",
     archiveFinishedRetry: "Tentar novamente ({{failed}}/{{total}})",
   },
+  goals: {
+    status: {
+      active: "Ativa",
+      paused: "Pausada",
+      blocked: "Bloqueada",
+      usageLimited: "Limite de uso atingido",
+      budgetLimited: "Limite de orçamento atingido",
+      complete: "Concluída",
+    },
+    actions: { pause: "Pausar", resume: "Retomar", clear: "Limpar" },
+  },
   panels: {
     draft: {
       newAgent: "Novo Agente",

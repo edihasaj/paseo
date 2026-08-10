@@ -1725,6 +1725,17 @@ export const ru: TranslationResources = {
     archiveFinishedAction: "Архивировать завершенные субагенты",
     archiveFinishedRetry: "Повторить ({{failed}}/{{total}})",
   },
+  goals: {
+    status: {
+      active: "Активна",
+      paused: "Приостановлена",
+      blocked: "Заблокирована",
+      usageLimited: "Лимит использования",
+      budgetLimited: "Лимит бюджета",
+      complete: "Завершена",
+    },
+    actions: { pause: "Пауза", resume: "Продолжить", clear: "Очистить" },
+  },
   panels: {
     draft: {
       newAgent: "Новый агент",
