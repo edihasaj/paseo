@@ -90,6 +90,11 @@ type CodexTestSession = AgentSession & {
   client: CodexClientLike | null;
 };
 
+type TurnTerminalEvent = Extract<
+  AgentStreamEvent,
+  { type: "turn_completed" | "turn_failed" | "turn_canceled" }
+>;
+
 const ONE_BY_ONE_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X1r0AAAAASUVORK5CYII=";
 const CODEX_PROVIDER = "codex";
@@ -137,6 +142,41 @@ function createProviderWithFakeAppServer(appServer: FakeCodexAppServer): CodexAp
   internals.autoReviewEnabledPromise = Promise.resolve(false);
   internals.spawnAppServer = async () => appServer.child;
   return provider;
+}
+
+async function startCompactionTurnTest(): Promise<{
+  appServer: FakeCodexAppServer;
+  session: AgentSession;
+  events: AgentStreamEvent[];
+  terminalEvent: Promise<TurnTerminalEvent>;
+}> {
+  const appServer = createFakeCodexAppServer();
+  const session = new CodexAppServerAgentSession(
+    createConfig({ cwd: "/workspace/project" }),
+    null,
+    createTestLogger(),
+    async () => appServer.child,
+  );
+  const events: AgentStreamEvent[] = [];
+  const terminalEvent = new Promise<TurnTerminalEvent>((resolve) => {
+    session.subscribe((event) => {
+      const isCompaction = event.type === "timeline" && event.item.type === "compaction";
+      const isTerminal =
+        event.type === "turn_completed" ||
+        event.type === "turn_failed" ||
+        event.type === "turn_canceled";
+      if (isCompaction || isTerminal) {
+        events.push(event);
+      }
+      if (isTerminal) {
+        resolve(event);
+      }
+    });
+  });
+
+  await session.startTurn("exercise compaction lifecycle");
+  appServer.startsTurn({ threadId: "thread-1", turnId: "codex-turn-1" });
+  return { appServer, session, events, terminalEvent };
 }
 
 function archivedThreadHandle() {
@@ -3843,150 +3883,97 @@ describe("Codex app-server provider", () => {
     ]);
   });
 
-  test("completes a pending Codex compaction when its turn ends", () => {
-    const session = createSession();
-    const events: AgentStreamEvent[] = [];
-    session.subscribe((event) => events.push(event));
+  test("completes a pending Codex compaction when its turn ends", async () => {
+    const { appServer, session, events, terminalEvent } = await startCompactionTurnTest();
 
-    asInternals(session).handleNotification("item/started", {
-      threadId: "test-thread",
-      item: {
-        type: "contextCompaction",
-        id: "compact-without-completion",
-      },
-    });
-    asInternals(session).handleNotification("turn/completed", {
-      threadId: "test-thread",
-      turn: { status: "completed", error: null },
-    });
+    try {
+      appServer.startsCompaction({
+        threadId: "thread-1",
+        itemId: "compact-without-completion",
+      });
+      appServer.completeTurn();
+      await terminalEvent;
 
-    expect(events).toEqual([
-      {
-        type: "timeline",
-        provider: "codex",
-        turnId: "test-turn",
-        item: {
-          type: "compaction",
-          status: "loading",
-        },
-      },
-      {
-        type: "timeline",
-        provider: "codex",
-        turnId: "test-turn",
-        item: {
-          type: "compaction",
-          status: "completed",
-        },
-      },
-      {
-        type: "turn_completed",
-        provider: "codex",
-        usage: undefined,
-        turnId: "test-turn",
-      },
-    ]);
+      expect(
+        events.map((event) =>
+          event.type === "timeline" ? `${event.item.type}:${event.item.status}` : event.type,
+        ),
+      ).toEqual(["compaction:loading", "compaction:completed", "turn_completed"]);
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
   });
 
-  test("does not complete a Codex compaction twice when its item finishes before the turn", () => {
-    const session = createSession();
-    const events: AgentStreamEvent[] = [];
-    session.subscribe((event) => events.push(event));
+  test("does not complete a Codex compaction twice when its item finishes before the turn", async () => {
+    const { appServer, session, events, terminalEvent } = await startCompactionTurnTest();
 
-    const item = {
-      type: "contextCompaction",
-      id: "compact-completed-normally",
-    };
-    asInternals(session).handleNotification("item/started", {
-      threadId: "test-thread",
-      item,
-    });
-    asInternals(session).handleNotification("item/completed", {
-      threadId: "test-thread",
-      item,
-    });
-    asInternals(session).handleNotification("turn/completed", {
-      threadId: "test-thread",
-      turn: { status: "completed", error: null },
-    });
+    try {
+      appServer.startsCompaction({
+        threadId: "thread-1",
+        itemId: "compact-completed-normally",
+      });
+      appServer.completesCompaction({
+        threadId: "thread-1",
+        itemId: "compact-completed-normally",
+      });
+      appServer.completeTurn();
+      await terminalEvent;
 
-    expect(
-      events.filter(
-        (event) =>
-          event.type === "timeline" &&
-          event.item.type === "compaction" &&
-          event.item.status === "completed",
-      ),
-    ).toHaveLength(1);
-    expect(events.at(-1)).toEqual({
-      type: "turn_completed",
-      provider: "codex",
-      usage: undefined,
-      turnId: "test-turn",
-    });
+      expect(
+        events.map((event) =>
+          event.type === "timeline" ? `${event.item.type}:${event.item.status}` : event.type,
+        ),
+      ).toEqual(["compaction:loading", "compaction:completed", "turn_completed"]);
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
   });
 
-  test("does not let a late compaction completion consume the current pending item", () => {
-    const session = createSession();
-    const events: AgentStreamEvent[] = [];
-    session.subscribe((event) => events.push(event));
+  test("does not let a late compaction completion consume the current pending item", async () => {
+    const { appServer, session, events, terminalEvent } = await startCompactionTurnTest();
 
-    asInternals(session).handleNotification("item/started", {
-      threadId: "test-thread",
-      item: { type: "contextCompaction", id: "current-compaction" },
-    });
-    asInternals(session).handleNotification("item/completed", {
-      threadId: "test-thread",
-      item: { type: "contextCompaction", id: "older-compaction" },
-    });
-    asInternals(session).handleNotification("turn/completed", {
-      threadId: "test-thread",
-      turn: { status: "completed", error: null },
-    });
+    try {
+      appServer.startsCompaction({ threadId: "thread-1", itemId: "current-compaction" });
+      appServer.completesCompaction({ threadId: "thread-1", itemId: "older-compaction" });
+      appServer.completeTurn();
+      await terminalEvent;
 
-    expect(
-      events.filter(
-        (event) =>
-          event.type === "timeline" &&
-          event.item.type === "compaction" &&
-          event.item.status === "completed",
-      ),
-    ).toHaveLength(2);
-    expect(events.at(-2)).toEqual({
-      type: "timeline",
-      provider: "codex",
-      turnId: "test-turn",
-      item: { type: "compaction", status: "completed" },
-    });
+      expect(
+        events.map((event) =>
+          event.type === "timeline" ? `${event.item.type}:${event.item.status}` : event.type,
+        ),
+      ).toEqual(["compaction:loading", "compaction:completed", "turn_completed"]);
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
   });
 
   test.each([
     { status: "failed", terminalType: "turn_failed" },
     { status: "interrupted", terminalType: "turn_canceled" },
-  ])("completes a pending compaction before a $status turn", ({ status, terminalType }) => {
-    const session = createSession();
-    const events: AgentStreamEvent[] = [];
-    session.subscribe((event) => events.push(event));
+  ])("completes a pending compaction before a $status turn", async ({ status, terminalType }) => {
+    const { appServer, session, events, terminalEvent } = await startCompactionTurnTest();
 
-    asInternals(session).handleNotification("item/started", {
-      threadId: "test-thread",
-      item: { type: "contextCompaction", id: `compact-${status}` },
-    });
-    asInternals(session).handleNotification("turn/completed", {
-      threadId: "test-thread",
-      turn: {
+    try {
+      appServer.startsCompaction({ threadId: "thread-1", itemId: `compact-${status}` });
+      appServer.completeTurn({
         status,
         error: status === "failed" ? { message: "Compaction failed" } : null,
-      },
-    });
+      });
+      await terminalEvent;
 
-    expect(events.at(-2)).toEqual({
-      type: "timeline",
-      provider: "codex",
-      turnId: "test-turn",
-      item: { type: "compaction", status: "completed" },
-    });
-    expect(events.at(-1)?.type).toBe(terminalType);
+      expect(
+        events.map((event) =>
+          event.type === "timeline" ? `${event.item.type}:${event.item.status}` : event.type,
+        ),
+      ).toEqual(["compaction:loading", "compaction:completed", terminalType]);
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
   });
 
   test("emits and dedupes Codex thread/compacted notifications", () => {

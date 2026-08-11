@@ -3166,6 +3166,10 @@ interface CodexPendingPermissionHandler {
   planText?: string;
 }
 
+interface ConsumedRootCompaction {
+  itemId?: string;
+}
+
 export class CodexAppServerAgentSession implements AgentSession {
   readonly provider = CODEX_PROVIDER;
   readonly capabilities = CODEX_APP_SERVER_CAPABILITIES;
@@ -5185,7 +5189,16 @@ export class CodexAppServerAgentSession implements AgentSession {
     if (!this.isContextCompactionItem(item)) {
       return false;
     }
-    this.consumePendingRootCompaction(item.id);
+    const consumedPendingCompaction = this.consumePendingRootCompaction(item.id);
+    const hasDifferentPendingCompaction =
+      this.pendingRootCompactionItemIds.size > 0 || this.pendingAnonymousRootCompactions > 0;
+    const isLateCompletionForOlderItem =
+      item.id !== undefined &&
+      consumedPendingCompaction === undefined &&
+      hasDifferentPendingCompaction;
+    if (isLateCompletionForOlderItem) {
+      return true;
+    }
     if (this.unpairedCompactionNotificationCompletions > 0) {
       this.unpairedCompactionNotificationCompletions -= 1;
       return true;
@@ -5683,17 +5696,28 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.pendingAnonymousRootCompactions += 1;
   }
 
-  private consumePendingRootCompaction(itemId?: string): string | undefined {
+  private consumePendingRootCompaction(itemId?: string): ConsumedRootCompaction | undefined {
     if (itemId) {
-      return this.pendingRootCompactionItemIds.delete(itemId) ? itemId : undefined;
+      if (this.pendingRootCompactionItemIds.delete(itemId)) {
+        return { itemId };
+      }
+      if (
+        this.pendingRootCompactionItemIds.size === 0 &&
+        this.pendingAnonymousRootCompactions > 0
+      ) {
+        this.pendingAnonymousRootCompactions -= 1;
+        return {};
+      }
+      return undefined;
     }
     const pendingItemId = this.pendingRootCompactionItemIds.values().next().value;
     if (typeof pendingItemId === "string") {
       this.pendingRootCompactionItemIds.delete(pendingItemId);
-      return pendingItemId;
+      return { itemId: pendingItemId };
     }
     if (this.pendingAnonymousRootCompactions > 0) {
       this.pendingAnonymousRootCompactions -= 1;
+      return {};
     }
     return undefined;
   }
@@ -5768,7 +5792,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       this.unpairedCompactionItemCompletions -= 1;
       return;
     }
-    const pendingItemId = this.consumePendingRootCompaction();
+    const pendingItemId = this.consumePendingRootCompaction()?.itemId;
     this.unpairedCompactionNotificationCompletions += 1;
     this.emitEvent({
       type: "timeline",
