@@ -3231,6 +3231,8 @@ export class CodexAppServerAgentSession implements AgentSession {
   private readonly userMessageTurnIds: string[] = [];
   private pendingManualCompactionStarts = 0;
   private compactionTriggerByItemId = new Map<string, "auto" | "manual">();
+  private pendingRootCompactionItemIds = new Set<string>();
+  private pendingAnonymousRootCompactions = 0;
   // Codex can report one completed compaction through both channels:
   // `thread/compacted` and a completed `contextCompaction` item.
   private unpairedCompactionNotificationCompletions = 0;
@@ -5183,6 +5185,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     if (!this.isContextCompactionItem(item)) {
       return false;
     }
+    this.consumePendingRootCompaction(item.id);
     if (this.unpairedCompactionNotificationCompletions > 0) {
       this.unpairedCompactionNotificationCompletions -= 1;
       return true;
@@ -5570,6 +5573,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       this.emitSubAgentActivityUpdate(subAgentCallId, status);
       return;
     }
+    this.completePendingRootCompactions();
     if (parsed.status === "failed") {
       this.emitEvent({
         type: "turn_failed",
@@ -5610,6 +5614,8 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.pendingFileChangeOutputDeltas.clear();
     this.pendingAssistantMessageBoundary = false;
     this.warnedIncompleteEditToolCallIds.clear();
+    this.pendingRootCompactionItemIds.clear();
+    this.pendingAnonymousRootCompactions = 0;
     this.unpairedCompactionNotificationCompletions = 0;
     this.unpairedCompactionItemCompletions = 0;
   }
@@ -5669,6 +5675,50 @@ export class CodexAppServerAgentSession implements AgentSession {
     return undefined;
   }
 
+  private trackPendingRootCompaction(itemId?: string): void {
+    if (itemId) {
+      this.pendingRootCompactionItemIds.add(itemId);
+      return;
+    }
+    this.pendingAnonymousRootCompactions += 1;
+  }
+
+  private consumePendingRootCompaction(itemId?: string): string | undefined {
+    if (itemId) {
+      return this.pendingRootCompactionItemIds.delete(itemId) ? itemId : undefined;
+    }
+    const pendingItemId = this.pendingRootCompactionItemIds.values().next().value;
+    if (typeof pendingItemId === "string") {
+      this.pendingRootCompactionItemIds.delete(pendingItemId);
+      return pendingItemId;
+    }
+    if (this.pendingAnonymousRootCompactions > 0) {
+      this.pendingAnonymousRootCompactions -= 1;
+    }
+    return undefined;
+  }
+
+  private completePendingRootCompactions(): void {
+    // Some Codex builds end a turn without completing the contextCompaction
+    // item. Close every loading timeline row before emitting the terminal turn.
+    for (const itemId of this.pendingRootCompactionItemIds) {
+      this.emitEvent({
+        type: "timeline",
+        provider: CODEX_PROVIDER,
+        item: this.createContextCompactionTimelineItem("completed", itemId),
+      });
+    }
+    for (let index = 0; index < this.pendingAnonymousRootCompactions; index += 1) {
+      this.emitEvent({
+        type: "timeline",
+        provider: CODEX_PROVIDER,
+        item: this.createContextCompactionTimelineItem("completed"),
+      });
+    }
+    this.pendingRootCompactionItemIds.clear();
+    this.pendingAnonymousRootCompactions = 0;
+  }
+
   private createContextCompactionTimelineItem(
     status: "loading" | "completed",
     itemId?: string,
@@ -5718,11 +5768,12 @@ export class CodexAppServerAgentSession implements AgentSession {
       this.unpairedCompactionItemCompletions -= 1;
       return;
     }
+    const pendingItemId = this.consumePendingRootCompaction();
     this.unpairedCompactionNotificationCompletions += 1;
     this.emitEvent({
       type: "timeline",
       provider: CODEX_PROVIDER,
-      item: this.createContextCompactionTimelineItem("completed"),
+      item: this.createContextCompactionTimelineItem("completed", pendingItemId),
       ...(parsed.turnId ? { turnId: parsed.turnId } : {}),
     });
   }
@@ -6047,6 +6098,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       return;
     }
     if (this.isContextCompactionItem(parsed.item)) {
+      this.trackPendingRootCompaction(parsed.item.id);
       this.emitEvent({
         type: "timeline",
         provider: CODEX_PROVIDER,

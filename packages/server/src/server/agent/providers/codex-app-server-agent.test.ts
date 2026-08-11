@@ -3843,6 +3843,152 @@ describe("Codex app-server provider", () => {
     ]);
   });
 
+  test("completes a pending Codex compaction when its turn ends", () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    asInternals(session).handleNotification("item/started", {
+      threadId: "test-thread",
+      item: {
+        type: "contextCompaction",
+        id: "compact-without-completion",
+      },
+    });
+    asInternals(session).handleNotification("turn/completed", {
+      threadId: "test-thread",
+      turn: { status: "completed", error: null },
+    });
+
+    expect(events).toEqual([
+      {
+        type: "timeline",
+        provider: "codex",
+        turnId: "test-turn",
+        item: {
+          type: "compaction",
+          status: "loading",
+        },
+      },
+      {
+        type: "timeline",
+        provider: "codex",
+        turnId: "test-turn",
+        item: {
+          type: "compaction",
+          status: "completed",
+        },
+      },
+      {
+        type: "turn_completed",
+        provider: "codex",
+        usage: undefined,
+        turnId: "test-turn",
+      },
+    ]);
+  });
+
+  test("does not complete a Codex compaction twice when its item finishes before the turn", () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    const item = {
+      type: "contextCompaction",
+      id: "compact-completed-normally",
+    };
+    asInternals(session).handleNotification("item/started", {
+      threadId: "test-thread",
+      item,
+    });
+    asInternals(session).handleNotification("item/completed", {
+      threadId: "test-thread",
+      item,
+    });
+    asInternals(session).handleNotification("turn/completed", {
+      threadId: "test-thread",
+      turn: { status: "completed", error: null },
+    });
+
+    expect(
+      events.filter(
+        (event) =>
+          event.type === "timeline" &&
+          event.item.type === "compaction" &&
+          event.item.status === "completed",
+      ),
+    ).toHaveLength(1);
+    expect(events.at(-1)).toEqual({
+      type: "turn_completed",
+      provider: "codex",
+      usage: undefined,
+      turnId: "test-turn",
+    });
+  });
+
+  test("does not let a late compaction completion consume the current pending item", () => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    asInternals(session).handleNotification("item/started", {
+      threadId: "test-thread",
+      item: { type: "contextCompaction", id: "current-compaction" },
+    });
+    asInternals(session).handleNotification("item/completed", {
+      threadId: "test-thread",
+      item: { type: "contextCompaction", id: "older-compaction" },
+    });
+    asInternals(session).handleNotification("turn/completed", {
+      threadId: "test-thread",
+      turn: { status: "completed", error: null },
+    });
+
+    expect(
+      events.filter(
+        (event) =>
+          event.type === "timeline" &&
+          event.item.type === "compaction" &&
+          event.item.status === "completed",
+      ),
+    ).toHaveLength(2);
+    expect(events.at(-2)).toEqual({
+      type: "timeline",
+      provider: "codex",
+      turnId: "test-turn",
+      item: { type: "compaction", status: "completed" },
+    });
+  });
+
+  test.each([
+    { status: "failed", terminalType: "turn_failed" },
+    { status: "interrupted", terminalType: "turn_canceled" },
+  ])("completes a pending compaction before a $status turn", ({ status, terminalType }) => {
+    const session = createSession();
+    const events: AgentStreamEvent[] = [];
+    session.subscribe((event) => events.push(event));
+
+    asInternals(session).handleNotification("item/started", {
+      threadId: "test-thread",
+      item: { type: "contextCompaction", id: `compact-${status}` },
+    });
+    asInternals(session).handleNotification("turn/completed", {
+      threadId: "test-thread",
+      turn: {
+        status,
+        error: status === "failed" ? { message: "Compaction failed" } : null,
+      },
+    });
+
+    expect(events.at(-2)).toEqual({
+      type: "timeline",
+      provider: "codex",
+      turnId: "test-turn",
+      item: { type: "compaction", status: "completed" },
+    });
+    expect(events.at(-1)?.type).toBe(terminalType);
+  });
+
   test("emits and dedupes Codex thread/compacted notifications", () => {
     const session = createSession();
     session.activeForegroundTurnId = null;
