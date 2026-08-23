@@ -139,7 +139,7 @@ export class ProviderAccountService {
     provider: string;
     accountProfileId: string | null | undefined;
   }): ResolvedProviderAccountLaunch {
-    if (!input.accountProfileId) {
+    if (input.accountProfileId === null || input.accountProfileId === undefined) {
       return { account: null, envOverlay: {} };
     }
     const account = this.requireAccount(input.accountProfileId);

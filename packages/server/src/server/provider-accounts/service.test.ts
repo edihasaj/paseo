@@ -95,6 +95,13 @@ describe("ProviderAccountService", () => {
     expect(service.resolveDefaultAccountId("opencode")).toBeNull();
   });
 
+  it("rejects an empty managed account id instead of treating it as System", () => {
+    const service = createService();
+    expect(() => service.resolveLaunch({ provider: "codex", accountProfileId: "" })).toThrow(
+      "Provider account not found",
+    );
+  });
+
   it("refuses to remove an account pinned to an active agent", async () => {
     const service = createService({
       listActiveAgentIds: async () => ["agent-a", "agent-b"],

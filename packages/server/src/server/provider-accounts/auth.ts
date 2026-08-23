@@ -242,14 +242,18 @@ function createCodexLoginStarter(logger: Logger): ProviderLoginStarter {
         verificationUrl:
           response.type === "chatgptDeviceCode" ? response.verificationUrl : response.authUrl,
         userCode: response.type === "chatgptDeviceCode" ? response.userCode : null,
-        completion: completion.finally(() => client.dispose()),
+        completion: completion.finally(() =>
+          client.dispose().catch((error) => {
+            logger.debug({ err: error }, "Codex login app-server disposal failed");
+          }),
+        ),
         cancel: async () => {
-          rejectCompletion(new Error("Codex login canceled"));
           if (loginId) {
             await client
               .request("account/login/cancel", { loginId }, AUTH_REQUEST_TIMEOUT_MS)
               .catch(() => undefined);
           }
+          rejectCompletion(new Error("Codex login canceled"));
           await client.dispose();
         },
       };

@@ -509,6 +509,24 @@ describe("real provider usage fetchers", () => {
     });
   }
 
+  it("does not fall back from an explicit managed Codex home to CODEX_HOME", async () => {
+    const globalCodexHome = join(homeDir, "global-codex");
+    mkdirSync(globalCodexHome, { recursive: true });
+    writeCodexAuth(globalCodexHome, "global-token");
+    process.env["CODEX_HOME"] = globalCodexHome;
+    const fetchSpy = vi.fn(async () =>
+      jsonResponse(makeCodexResponse()),
+    ) as unknown as typeof fetch;
+    const provider = new CodexQuotaProvider({
+      logger: createLogger(),
+      codexHome,
+      fetch: fetchSpy,
+    });
+
+    await expect(provider.fetchUsage()).resolves.toMatchObject({ status: "unavailable" });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("fetches Claude usage, coerces API numbers, and attaches HTTP timeout signals", async () => {
     writeClaudeCredentials(claudeHome, "at_valid");
     fetchApi = mockFetch(

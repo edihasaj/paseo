@@ -16,6 +16,7 @@ import {
 import { buildAgentProfileTags } from "./profile-summary";
 import { useAgentProfiles } from "./use-agent-profiles";
 import { requiresProfileContinuation } from "./profile-continuation";
+import { resolveProviderAccountLabel, useProviderAccounts } from "@/provider-accounts";
 
 /** The draft composer owns profile application as one state transition. */
 export interface DraftAgentProfileControls {
@@ -76,6 +77,7 @@ export function useAgentProfilePicker(
   const { serverId, availableProviders, target } = input;
   const { t } = useTranslation();
   const { profiles, isSupported } = useAgentProfiles(serverId);
+  const providerAccounts = useProviderAccounts(serverId);
   // Profiles are host config, so their labels read from the host-wide catalog
   // rather than a workspace's. That is also the key the settings section uses,
   // so every composer on a host shares one query instead of adding its own.
@@ -109,11 +111,19 @@ export function useAgentProfilePicker(
         icon: profile.icon ?? "",
         color: profile.color ?? "",
         name: profile.name,
-        summary: buildAgentProfileTags({ profile, entries, formatFeatureCount })
+        summary: buildAgentProfileTags({
+          profile,
+          entries,
+          formatFeatureCount,
+          accountLabel: resolveProviderAccountLabel(
+            profile.accountProfileId,
+            providerAccounts.accounts,
+          ),
+        })
           .map((tag) => tag.label)
           .join(" · "),
       })),
-    [applicableProfiles, entries, formatFeatureCount],
+    [applicableProfiles, entries, formatFeatureCount, providerAccounts.accounts],
   );
 
   const persistSelection = useCallback(
