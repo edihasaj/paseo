@@ -85,6 +85,16 @@ export function normalizeWorkspaceDraftTabSetup(
   }
   return {
     provider,
+    ...(Object.hasOwn(record, "accountProfileId")
+      ? {
+          accountProfileId:
+            record.accountProfileId === null
+              ? null
+              : trimOptionalString(
+                  typeof record.accountProfileId === "string" ? record.accountProfileId : null,
+                ),
+        }
+      : {}),
     cwd,
     modeId: trimOptionalString(typeof record.modeId === "string" ? record.modeId : null),
     model: trimOptionalString(typeof record.model === "string" ? record.model : null),
@@ -163,6 +173,7 @@ function workspaceDraftTabSetupsEqual(
   }
   return (
     left.provider === right.provider &&
+    left.accountProfileId === right.accountProfileId &&
     left.cwd === right.cwd &&
     left.modeId === right.modeId &&
     left.model === right.model &&

@@ -67,6 +67,7 @@ const DRAFT_CAPABILITIES: AgentCapabilityFlags = {
 
 interface AutoSubmitConfig {
   provider: string;
+  accountProfileId: string | null | undefined;
   modeId: string | null;
   model: string | null;
   thinkingOptionId: string | null;
@@ -76,6 +77,7 @@ interface AutoSubmitConfig {
 function resolveAutoSubmitConfig(
   pending: {
     provider: string;
+    accountProfileId?: string | null;
     modeId?: string | null;
     model?: string | null;
     thinkingOptionId?: string | null;
@@ -85,6 +87,7 @@ function resolveAutoSubmitConfig(
   if (!pending) return null;
   return {
     provider: pending.provider,
+    accountProfileId: pending.accountProfileId,
     modeId: pending.modeId ?? null,
     model: pending.model ?? null,
     thinkingOptionId: pending.thinkingOptionId ?? null,
@@ -148,6 +151,7 @@ async function submitDraftCreateRequest(input: {
   autoSubmitConfig: AutoSubmitConfig | null;
   composerState: {
     selectedProvider: string | null;
+    selectedAccountProfileId: string | null | undefined;
     selectedMode: string;
     modeOptions: readonly { id: string }[];
     effectiveModelId: string | null;
@@ -188,6 +192,9 @@ async function submitDraftCreateRequest(input: {
   const config = buildWorkspaceDraftAgentConfig({
     provider,
     cwd,
+    accountProfileId: autoSubmitConfig
+      ? autoSubmitConfig.accountProfileId
+      : composerState.selectedAccountProfileId,
     ...modeIdOverride,
     model: autoSubmitConfig?.model ?? (composerState.effectiveModelId || undefined),
     thinkingOptionId:
@@ -224,6 +231,7 @@ function buildDraftAgentSnapshot(input: {
     modeOptions: readonly { id: string }[];
     selectedMode: string;
     selectedProvider: string | null;
+    selectedAccountProfileId: string | null | undefined;
     agentControls: { features?: Agent["features"] };
   };
   selectModelMessage: string;
@@ -247,6 +255,9 @@ function buildDraftAgentSnapshot(input: {
     serverId,
     id: tabId,
     provider,
+    accountProfileId: autoSubmitConfig
+      ? autoSubmitConfig.accountProfileId
+      : composerState.selectedAccountProfileId,
     status: "running",
     activeTurn: null,
     createdAt: now,
@@ -282,6 +293,7 @@ function buildDraftInitialValues(input: {
   return {
     workingDir: input.workingDir,
     provider: input.initialSetup.provider,
+    accountProfileId: input.initialSetup.accountProfileId,
     modeId: input.initialSetup.modeId,
     model: input.initialSetup.model,
     thinkingOptionId: input.initialSetup.thinkingOptionId,

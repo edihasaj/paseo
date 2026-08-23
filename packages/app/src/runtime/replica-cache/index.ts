@@ -160,6 +160,7 @@ const StoredProjectPlacementSchema = z.strictObject({
 const StoredAgentSnapshotSchema = z.strictObject({
   id: z.string(),
   provider: AgentProviderSchema,
+  accountProfileId: z.string().nullable().optional(),
   cwd: z.string(),
   workspaceId: z.string().optional(),
   model: z.string().nullable(),
@@ -486,6 +487,7 @@ function serializeAgent(agent: Agent): StoredAgent {
   const snapshot = {
     id: agent.id,
     provider: agent.provider,
+    accountProfileId: agent.accountProfileId,
     cwd: agent.cwd,
     ...(agent.workspaceId ? { workspaceId: agent.workspaceId } : {}),
     model: agent.model,

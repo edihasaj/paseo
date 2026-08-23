@@ -44,6 +44,10 @@ import {
   useLiveAgentModeControl,
   type AgentModeControlValue,
 } from "@/composer/agent-controls/mode-control";
+import {
+  AgentAccountControl,
+  type AgentAccountControlValue,
+} from "@/composer/agent-controls/account-control";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type {
@@ -128,6 +132,7 @@ interface ControlledAgentControlsProps {
   onRetryModelProvider?: (provider: AgentProvider) => void;
   isRetryingModelProvider?: boolean;
   modeControl?: AgentModeControlValue | null;
+  accountControl?: AgentAccountControlValue | null;
   modelSelectorServerId?: string | null;
   isCompactLayout?: boolean;
 }
@@ -145,6 +150,8 @@ export interface DraftAgentControlsProps {
   modelSelectorProviders: ProviderSelectorProvider[];
   isAllModelsLoading: boolean;
   onSelectProviderAndModel: (provider: AgentProvider, modelId: string) => void;
+  selectedAccountProfileId: string | null | undefined;
+  onSelectAccountProfile: (accountProfileId: string | null | undefined) => void;
   thinkingOptions: NonNullable<AgentModelDefinition["thinkingOptions"]>;
   selectedThinkingOptionId: string;
   onSelectThinkingOption: (thinkingOptionId: string) => void;
@@ -498,6 +505,7 @@ function ControlledAgentControls({
   onRetryModelProvider,
   isRetryingModelProvider = false,
   modeControl,
+  accountControl,
   modelSelectorServerId = null,
   isCompactLayout,
 }: ControlledAgentControlsProps) {
@@ -778,6 +786,7 @@ function ControlledAgentControls({
             handleNestedOpenChange={handleSheetOpenChange}
             renderThinkingOption={renderThinkingOption}
             modeControl={modeControl}
+            accountControl={accountControl}
             presentation={presentation}
             glyphSize={layoutContextValue.glyphSize}
             activeSheet={activeSheet}
@@ -818,6 +827,7 @@ function ControlledAgentControls({
             handleOpenChange={handleSheetOpenChange}
             renderThinkingOption={renderThinkingOption}
             modeControl={modeControl}
+            accountControl={accountControl}
             glyphSize={layoutContextValue.glyphSize}
             modelSelectorServerId={modelSelectorServerId}
             canSwitchProvider={Boolean(onSelectProviderAndModel)}
@@ -878,6 +888,7 @@ interface DesktopAgentControlsContentProps {
     onPress: () => void;
   }) => ReactElement;
   modeControl?: AgentModeControlValue | null;
+  accountControl?: AgentAccountControlValue | null;
   presentation: ComposerControlPresentation;
   glyphSize: number;
   activeSheet: ActiveSheet;
@@ -935,6 +946,7 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
     handleNestedOpenChange,
     renderThinkingOption,
     modeControl,
+    accountControl,
     presentation,
     glyphSize,
     activeSheet,
@@ -1054,6 +1066,9 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
       ) : null}
 
       {modeControl ? <AgentModeControl {...modeControl} onClose={onDropdownClose} /> : null}
+      {accountControl ? (
+        <AgentAccountControl {...accountControl} onClose={onDropdownClose} />
+      ) : null}
 
       {presentation.aggregateFeatures && features?.length ? (
         <>
@@ -1141,6 +1156,7 @@ interface SheetAgentControlsContentProps {
     onPress: () => void;
   }) => ReactElement;
   modeControl?: AgentModeControlValue | null;
+  accountControl?: AgentAccountControlValue | null;
   glyphSize: number;
   modelSelectorServerId: string | null;
   canSwitchProvider: boolean;
@@ -1180,6 +1196,7 @@ function SheetAgentControlsContent(props: SheetAgentControlsContentProps) {
     handleOpenChange,
     renderThinkingOption,
     modeControl,
+    accountControl,
     glyphSize,
     modelSelectorServerId,
     canSwitchProvider,
@@ -1235,6 +1252,7 @@ function SheetAgentControlsContent(props: SheetAgentControlsContentProps) {
       ) : null}
 
       {modeControl ? <AgentModeControl {...modeControl} surface="sheet" /> : null}
+      {accountControl ? <AgentAccountControl {...accountControl} surface="sheet" /> : null}
 
       {(features ?? []).map((feature) => (
         <SheetFeatureItem
@@ -1820,6 +1838,8 @@ export function DraftAgentControls({
   modelSelectorProviders,
   isAllModelsLoading,
   onSelectProviderAndModel,
+  selectedAccountProfileId,
+  onSelectAccountProfile,
   thinkingOptions,
   selectedThinkingOptionId,
   onSelectThinkingOption,
@@ -1891,6 +1911,25 @@ export function DraftAgentControls({
         : null,
     [selectedProvider, providerDefinitions, modeOptions, selectedMode, onSelectMode, disabled],
   );
+  const accountControl = useMemo<AgentAccountControlValue | null>(
+    () =>
+      selectedProvider
+        ? {
+            serverId: modelSelectorServerId,
+            provider: selectedProvider,
+            selectedAccountProfileId,
+            onSelectAccountProfile,
+            disabled,
+          }
+        : null,
+    [
+      disabled,
+      modelSelectorServerId,
+      onSelectAccountProfile,
+      selectedAccountProfileId,
+      selectedProvider,
+    ],
+  );
 
   return (
     <>
@@ -1919,6 +1958,7 @@ export function DraftAgentControls({
         isRetryingModelProvider={isRetryingModelProvider}
         disabled={disabled}
         modeControl={modeControl}
+        accountControl={accountControl}
         modelSelectorServerId={modelSelectorServerId}
         isCompactLayout={isCompactLayout}
       />
