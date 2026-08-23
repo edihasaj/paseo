@@ -15,6 +15,7 @@ import {
 } from "./materialize-profile";
 import { buildAgentProfileTags } from "./profile-summary";
 import { useAgentProfiles } from "./use-agent-profiles";
+import { requiresProfileContinuation } from "./profile-continuation";
 
 /** The draft composer owns profile application as one state transition. */
 export interface DraftAgentProfileControls {
@@ -22,7 +23,14 @@ export interface DraftAgentProfileControls {
 }
 
 export type AgentProfileApplyTarget =
-  | { kind: "agent"; agentId: string; availableModeIds: readonly string[] | null }
+  | {
+      kind: "agent";
+      agentId: string;
+      provider: string;
+      accountProfileId: string | null | undefined;
+      availableModeIds: readonly string[] | null;
+      continueWithProfile?: (profile: MaterializedAgentProfile) => void;
+    }
   | { kind: "draft"; controls: DraftAgentProfileControls };
 
 /** Everything the model picker renders for one profile. It never sees the profile itself. */
@@ -138,6 +146,13 @@ export function useAgentProfilePicker(
 
       if (target.kind === "draft") {
         target.controls.applyProfile(resolved);
+        return;
+      }
+
+      const changesProcess = requiresProfileContinuation(resolved, target);
+      if (changesProcess && target.continueWithProfile) {
+        persistSelection(resolved);
+        target.continueWithProfile(resolved);
         return;
       }
 
