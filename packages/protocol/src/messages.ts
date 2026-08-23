@@ -153,6 +153,7 @@ export const AgentProfileSchema = z
     /** An identity colour name shared with host badges. Unknown values draw unthemed. */
     color: z.string().optional(),
     provider: z.string(),
+    accountProfileId: z.string().nullable().optional(),
     model: z.string().optional(),
     modeId: z.string().optional(),
     thinkingOptionId: z.string().optional(),
@@ -456,6 +457,7 @@ const ToolPolicySchema = z
 const AgentSessionConfigSchema = z.object({
   provider: AgentProviderSchema,
   cwd: z.string(),
+  accountProfileId: z.string().nullable().optional(),
   modeId: z.string().optional(),
   model: z.string().optional(),
   thinkingOptionId: z.string().optional(),
@@ -816,6 +818,7 @@ const AgentActiveTurnPayloadSchema = z.object({
 export const AgentSnapshotPayloadSchema = z.object({
   id: z.string(),
   provider: AgentProviderSchema,
+  accountProfileId: z.string().nullable().optional(),
   cwd: z.string(),
   workspaceId: z.string().optional(),
   model: z.string().nullable(),
@@ -851,6 +854,7 @@ export const AgentListItemPayloadSchema = z.object({
   shortId: z.string(),
   title: z.string().nullable(),
   provider: AgentProviderSchema,
+  accountProfileId: z.string().nullable().optional(),
   model: z.string().nullable(),
   thinkingOptionId: z.string().nullable().optional(),
   effectiveThinkingOptionId: z.string().nullable().optional(),

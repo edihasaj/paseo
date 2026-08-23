@@ -81,6 +81,7 @@ import {
   type ProviderSubagentDescriptor,
   type ProviderSubagentStoreEvent,
 } from "./provider-subagents/store.js";
+import type { ProviderAccountService } from "../provider-accounts/service.js";
 
 const RELOAD_SESSION_CLOSE_TIMEOUT_MS = 3_000;
 const INTERRUPT_SESSION_TIMEOUT_MS = 2_000;
@@ -139,6 +140,11 @@ interface NormalizeConfigOptions {
   env?: Record<string, string>;
 }
 
+type ProviderAccountLaunchResolver = Pick<
+  ProviderAccountService,
+  "resolveDefaultAccountId" | "resolveLaunch"
+>;
+
 interface TimeoutOptions {
   operation: Promise<void>;
   timeoutMs: number;
@@ -156,6 +162,9 @@ function buildStoredAgentConfig(record: StoredAgentRecord): AgentSessionConfig {
   };
   if (!record.config) {
     return config;
+  }
+  if (Object.prototype.hasOwnProperty.call(record.config, "accountProfileId")) {
+    config.accountProfileId = record.config.accountProfileId ?? null;
   }
   if (record.config.modeId != null) config.modeId = record.config.modeId;
   if (record.config.model != null) config.model = record.config.model;
@@ -288,6 +297,7 @@ export interface AgentManagerOptions {
     agentId: string;
     expectedTurnId: string;
   }) => Promise<void>;
+  providerAccounts?: ProviderAccountLaunchResolver;
   logger: Logger;
 }
 
@@ -699,6 +709,7 @@ export class AgentManager {
   private logger: Logger;
   private readonly rescueTimeouts: Required<AgentManagerRescueTimeouts>;
   private readonly beforeSteerUnavailableFallback?: AgentManagerOptions["beforeSteerUnavailableFallback"];
+  private readonly providerAccounts?: ProviderAccountLaunchResolver;
   private acceptingAgentRegistrations = true;
 
   constructor(options: AgentManagerOptions) {
@@ -719,6 +730,7 @@ export class AgentManager {
         options.rescueTimeouts?.interruptSessionMs ?? INTERRUPT_SESSION_TIMEOUT_MS,
     };
     this.beforeSteerUnavailableFallback = options.beforeSteerUnavailableFallback;
+    this.providerAccounts = options.providerAccounts;
     this.agentStreamCoalescer = new AgentStreamCoalescer({
       windowMs: options.agentStreamCoalesceWindowMs ?? AGENT_STREAM_COALESCE_DEFAULT_WINDOW_MS,
       timers: { setTimeout, clearTimeout },
@@ -1148,6 +1160,7 @@ export class AgentManager {
       config,
       resolvedAgentId,
       options?.env,
+      { resolveDefaultAccount: true },
     );
     this.requireEnabledProvider(storedConfig.provider);
     const client = await this.requireAvailableClient({
@@ -1156,7 +1169,7 @@ export class AgentManager {
     const launchContext = await this.buildLaunchContext(
       resolvedAgentId,
       client,
-      storedConfig.cwd,
+      storedConfig,
       options?.env,
     );
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
@@ -1238,7 +1251,7 @@ export class AgentManager {
         `Provider '${handle.provider}' is not available. Please ensure the CLI is installed.`,
       );
     }
-    const launchContext = await this.buildLaunchContext(resolvedAgentId, client, storedConfig.cwd);
+    const launchContext = await this.buildLaunchContext(resolvedAgentId, client, storedConfig);
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
     const session = await client.resumeSession(
       handle,
@@ -1286,7 +1299,7 @@ export class AgentManager {
       },
       resolvedAgentId,
     );
-    const launchContext = await this.buildLaunchContext(resolvedAgentId, client, storedConfig.cwd);
+    const launchContext = await this.buildLaunchContext(resolvedAgentId, client, storedConfig);
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
     const imported = await client.importSession(
       {
@@ -1367,7 +1380,7 @@ export class AgentManager {
       provider,
     } as AgentSessionConfig;
     const { storedConfig, launchConfig } = await this.prepareSessionConfig(refreshConfig, agentId);
-    const launchContext = await this.buildLaunchContext(agentId, client, storedConfig.cwd);
+    const launchContext = await this.buildLaunchContext(agentId, client, storedConfig);
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
 
     const session = handle
@@ -4776,8 +4789,12 @@ export class AgentManager {
     config: AgentSessionConfig,
     agentId: string,
     env?: Record<string, string>,
+    options: { resolveDefaultAccount?: boolean } = {},
   ): Promise<PreparedSessionConfig> {
-    const storedConfig = await this.normalizeConfig(stripInternalPaseoMcpServer(config), { env });
+    const accountConfig = this.resolveProviderAccountConfig(config, options);
+    const storedConfig = await this.normalizeConfig(stripInternalPaseoMcpServer(accountConfig), {
+      env,
+    });
     const launchConfig = this.applyDaemonAppendSystemPrompt(
       withRuntimePaseoMcpServer({
         config: storedConfig,
@@ -4805,16 +4822,23 @@ export class AgentManager {
   private async buildLaunchContext(
     agentId: string,
     client: AgentClient,
-    cwd: string,
+    config: AgentSessionConfig,
     env?: Record<string, string>,
   ): Promise<AgentLaunchContext> {
+    const accountLaunch = this.providerAccounts?.resolveLaunch({
+      provider: config.provider,
+      accountProfileId: config.accountProfileId,
+    });
     const context: AgentLaunchContext = {
       agentId,
       env: {
         ...env,
         PASEO_AGENT_ID: agentId,
-        PASEO_AGENT_CWD: cwd,
+        PASEO_AGENT_CWD: config.cwd,
       },
+      ...(accountLaunch && Object.keys(accountLaunch.envOverlay).length > 0
+        ? { providerAccountEnv: accountLaunch.envOverlay }
+        : {}),
     };
     if (
       this.paseoToolsEnabled &&
@@ -4824,6 +4848,24 @@ export class AgentManager {
       context.paseoTools = await this.paseoToolCatalogFactory({ callerAgentId: agentId });
     }
     return context;
+  }
+
+  private resolveProviderAccountConfig(
+    config: AgentSessionConfig,
+    options: { resolveDefaultAccount?: boolean },
+  ): AgentSessionConfig {
+    if (!this.providerAccounts) return config;
+    const hasExplicitAccount = Object.prototype.hasOwnProperty.call(config, "accountProfileId");
+    if (hasExplicitAccount || !options.resolveDefaultAccount) {
+      this.providerAccounts.resolveLaunch({
+        provider: config.provider,
+        accountProfileId: config.accountProfileId,
+      });
+      return config;
+    }
+    const accountProfileId = this.providerAccounts.resolveDefaultAccountId(config.provider);
+    this.providerAccounts.resolveLaunch({ provider: config.provider, accountProfileId });
+    return { ...config, accountProfileId };
   }
 
   private resolveProviderLaunchConfig(
