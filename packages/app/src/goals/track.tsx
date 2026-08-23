@@ -114,18 +114,18 @@ const styles = StyleSheet.create((theme) => ({
   },
   status: {
     flexShrink: 0,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     color: theme.colors.foreground,
   },
   objective: {
     flex: 1,
     minWidth: 0,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
   },
   duration: {
     flexShrink: 0,
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
   },
   actions: {
@@ -135,7 +135,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   error: {
     paddingBottom: theme.spacing[1],
-    fontSize: theme.fontSize.xs,
+    fontSize: theme.fontSize.sm,
     color: theme.colors.statusDanger,
   },
 }));
