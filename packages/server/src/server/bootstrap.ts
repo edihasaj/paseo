@@ -912,6 +912,14 @@ export async function createPaseoDaemon(
   const initialAgentManagerState = providerSnapshotManager.getAgentManagerProviderState();
   const providerAccounts = new ProviderAccountService(
     new ProviderAccountStore(path.join(config.paseoHome, "provider-accounts")),
+    {
+      listActiveAgentIds: async (accountProfileId) =>
+        (await agentStorage.list())
+          .filter(
+            (agent) => !agent.archivedAt && agent.config?.accountProfileId === accountProfileId,
+          )
+          .map((agent) => agent.id),
+    },
   );
   const agentManager = new AgentManager({
     clients: initialAgentManagerState.clients,
@@ -1660,6 +1668,7 @@ export async function createPaseoDaemon(
               pluginRuntime,
               orchestrationSkills,
               workspaceLabelService,
+              providerAccounts,
             );
             pluginRuntime.bindPaseoSessionHost(wsServer);
             await pluginRuntime.start();

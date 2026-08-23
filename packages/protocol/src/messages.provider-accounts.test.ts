@@ -3,6 +3,8 @@ import {
   AgentListItemPayloadSchema,
   AgentSnapshotPayloadSchema,
   CreateAgentRequestMessageSchema,
+  SessionInboundMessageSchema,
+  SessionOutboundMessageSchema,
 } from "./messages.js";
 
 const capabilities = {
@@ -78,5 +80,33 @@ describe("provider account message fields", () => {
 
     expect(snapshot.accountProfileId).toBe("pac_0123456789abcdef");
     expect(listItem.accountProfileId).toBe(snapshot.accountProfileId);
+  });
+
+  it("validates provider account management requests and state responses", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "provider.account.default.set.request",
+        requestId: "req-default",
+        provider: "codex",
+        accountProfileId: "pac_0123456789abcdef",
+      }),
+    ).toMatchObject({
+      type: "provider.account.default.set.request",
+      provider: "codex",
+      accountProfileId: "pac_0123456789abcdef",
+    });
+    expect(
+      SessionOutboundMessageSchema.parse({
+        type: "provider.account.list.response",
+        payload: {
+          requestId: "req-list",
+          accounts: [],
+          defaults: { codex: null },
+        },
+      }),
+    ).toEqual({
+      type: "provider.account.list.response",
+      payload: { requestId: "req-list", accounts: [], defaults: { codex: null } },
+    });
   });
 });

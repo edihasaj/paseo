@@ -5903,6 +5903,75 @@ test("sends provider.usage.list.request and resolves provider.usage.list.respons
   });
 });
 
+test("lists and creates provider account profiles through namespaced RPC", async () => {
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_provider_accounts",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const listPromise = client.listProviderAccounts("accounts-list-1");
+  expect(parseSentFrame(mock.sent[0])).toEqual({
+    type: "provider.account.list.request",
+    requestId: "accounts-list-1",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "provider.account.list.response",
+      payload: { requestId: "accounts-list-1", accounts: [], defaults: {} },
+    }),
+  );
+  await expect(listPromise).resolves.toEqual({
+    requestId: "accounts-list-1",
+    accounts: [],
+    defaults: {},
+  });
+
+  mock.sent.length = 0;
+  const createPromise = client.createProviderAccount({
+    provider: "codex",
+    name: "Work",
+    requestId: "accounts-create-1",
+  });
+  expect(parseSentFrame(mock.sent[0])).toEqual({
+    type: "provider.account.create.request",
+    requestId: "accounts-create-1",
+    provider: "codex",
+    name: "Work",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "provider.account.create.response",
+      payload: {
+        requestId: "accounts-create-1",
+        accounts: [
+          {
+            id: "pac_0123456789abcdef",
+            provider: "codex",
+            name: "Work",
+            identity: null,
+            createdAt: "2026-08-23T00:00:00.000Z",
+            updatedAt: "2026-08-23T00:00:00.000Z",
+            lastAuthenticatedAt: null,
+          },
+        ],
+        defaults: {},
+      },
+    }),
+  );
+  await expect(createPromise).resolves.toMatchObject({
+    accounts: [{ id: "pac_0123456789abcdef", provider: "codex", name: "Work" }],
+  });
+});
+
 test("sends close_items_request and resolves close_items_response", async () => {
   const logger = createMockLogger();
   const mock = createMockTransport();

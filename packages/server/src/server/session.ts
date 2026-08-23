@@ -76,6 +76,8 @@ import {
   WorkspaceLabelStorageUncertainError,
   type WorkspaceLabelService,
 } from "./workspace-labels/index.js";
+import type { ProviderAccountService } from "./provider-accounts/service.js";
+import { ProviderAccountSession } from "./session/provider/provider-account-session.js";
 
 import { AgentManager, AgentRunCancellationError } from "./agent/agent-manager.js";
 import { buildTimelinePromptIndex } from "./agent/timeline-prompt-index.js";
@@ -490,6 +492,7 @@ export interface SessionOptions {
   terminalManager: TerminalManager | null;
   providerSnapshotManager: ProviderSnapshotManager;
   providerUsageService: ProviderUsageService;
+  providerAccounts?: ProviderAccountService;
   hubExecutionAgents?: HubExecutionAgents;
   hubRelationships?: HubRelationshipManagement;
   serviceProxy?: ServiceProxySubsystem;
@@ -729,6 +732,7 @@ export class Session {
   private readonly checkoutSession: CheckoutSession;
   private readonly scheduleSession: ScheduleSession;
   private readonly providerCatalogSession: ProviderCatalogSession;
+  private readonly providerAccountSession: ProviderAccountSession;
   private readonly workspaceFilesSession: WorkspaceFilesSession;
   private readonly agentConfigSession: AgentConfigSession;
   private readonly projectConfigSession: ProjectConfigSession;
@@ -777,6 +781,7 @@ export class Session {
       terminalManager,
       providerSnapshotManager,
       providerUsageService,
+      providerAccounts,
       serviceProxy,
       scriptRuntimeStore,
       workspaceSetupSnapshots,
@@ -913,6 +918,10 @@ export class Session {
       providerSnapshotManager,
       providerUsageService,
       logger: this.sessionLogger,
+    });
+    this.providerAccountSession = new ProviderAccountSession({
+      host: { emit: (msg) => this.emit(msg) },
+      providerAccounts,
     });
     this.agentConfigSession = new AgentConfigSession({
       host: {
@@ -2513,6 +2522,16 @@ export class Session {
         return this.providerCatalogSession.handleProviderDiagnosticRequest(msg);
       case "provider.usage.list.request":
         return this.providerCatalogSession.handleProviderUsageListRequest(msg);
+      case "provider.account.list.request":
+        return this.providerAccountSession.handleList(msg);
+      case "provider.account.create.request":
+        return this.providerAccountSession.handleCreate(msg);
+      case "provider.account.rename.request":
+        return this.providerAccountSession.handleRename(msg);
+      case "provider.account.default.set.request":
+        return this.providerAccountSession.handleDefaultSet(msg);
+      case "provider.account.remove.request":
+        return this.providerAccountSession.handleRemove(msg);
       default:
         return undefined;
     }

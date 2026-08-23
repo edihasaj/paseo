@@ -16,6 +16,15 @@ export class ProviderAccountProviderMismatchError extends Error {
   }
 }
 
+export class ProviderAccountInUseError extends Error {
+  readonly code = "provider_account_in_use";
+
+  constructor(readonly agentIds: string[]) {
+    super(`Provider account is used by active agents: ${agentIds.join(", ")}`);
+    this.name = "ProviderAccountInUseError";
+  }
+}
+
 export interface ProviderAccountListResult {
   accounts: ProviderAccountProfile[];
   defaults: Partial<Record<ProviderAccountProvider, string | null>>;
@@ -26,8 +35,15 @@ export interface ResolvedProviderAccountLaunch {
   envOverlay: ProcessEnvRecord;
 }
 
+interface ProviderAccountServiceOptions {
+  listActiveAgentIds?: (accountProfileId: string) => Promise<string[]>;
+}
+
 export class ProviderAccountService {
-  constructor(private readonly store: ProviderAccountStore) {}
+  constructor(
+    private readonly store: ProviderAccountStore,
+    private readonly options: ProviderAccountServiceOptions = {},
+  ) {}
 
   list(): ProviderAccountListResult {
     const snapshot = this.store.list();
@@ -63,8 +79,10 @@ export class ProviderAccountService {
     return this.list();
   }
 
-  remove(accountId: string): Promise<void> {
-    return this.store.remove(accountId);
+  async remove(accountId: string): Promise<void> {
+    const agentIds = await this.options.listActiveAgentIds?.(accountId);
+    if (agentIds?.length) throw new ProviderAccountInUseError(agentIds);
+    await this.store.remove(accountId);
   }
 
   resolveLaunch(input: {

@@ -701,6 +701,10 @@ export type WorkspaceLabelDeleteInspectPayload = Extract<
   SessionOutboundMessage,
   { type: "workspace.label.delete.inspect.response" }
 >["payload"];
+export type ProviderAccountStatePayload = Extract<
+  SessionOutboundMessage,
+  { type: "provider.account.list.response" }
+>["payload"];
 export type ProjectListPayload = Extract<
   SessionOutboundMessage,
   { type: "project.list.response" }
@@ -2208,6 +2212,77 @@ export class DaemonClient {
       message: {
         type: "workspace.label.delete.inspect.request",
         name: options.name,
+      },
+    });
+  }
+
+  listProviderAccounts(requestId?: string): Promise<ProviderAccountStatePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.list.response">({
+      requestId,
+      message: { type: "provider.account.list.request" },
+    });
+  }
+
+  createProviderAccount(options: {
+    provider: Extract<
+      SessionInboundMessage,
+      { type: "provider.account.create.request" }
+    >["provider"];
+    name: string;
+    requestId?: string;
+  }): Promise<ProviderAccountStatePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.create.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.create.request",
+        provider: options.provider,
+        name: options.name,
+      },
+    });
+  }
+
+  renameProviderAccount(options: {
+    accountProfileId: string;
+    name: string;
+    requestId?: string;
+  }): Promise<ProviderAccountStatePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.rename.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.rename.request",
+        accountProfileId: options.accountProfileId,
+        name: options.name,
+      },
+    });
+  }
+
+  setDefaultProviderAccount(options: {
+    provider: Extract<
+      SessionInboundMessage,
+      { type: "provider.account.default.set.request" }
+    >["provider"];
+    accountProfileId: string | null;
+    requestId?: string;
+  }): Promise<ProviderAccountStatePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.default.set.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.default.set.request",
+        provider: options.provider,
+        accountProfileId: options.accountProfileId,
+      },
+    });
+  }
+
+  removeProviderAccount(options: {
+    accountProfileId: string;
+    requestId?: string;
+  }): Promise<ProviderAccountStatePayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.remove.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.remove.request",
+        accountProfileId: options.accountProfileId,
       },
     });
   }

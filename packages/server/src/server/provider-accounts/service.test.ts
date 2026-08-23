@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createExternalProcessEnv } from "../paseo-env.js";
-import { ProviderAccountService, ProviderAccountProviderMismatchError } from "./service.js";
+import {
+  ProviderAccountInUseError,
+  ProviderAccountService,
+  ProviderAccountProviderMismatchError,
+} from "./service.js";
 import { ProviderAccountStore } from "./store.js";
 
 const roots: string[] = [];
@@ -14,7 +18,7 @@ afterEach(() => {
   }
 });
 
-function createService() {
+function createService(options?: ConstructorParameters<typeof ProviderAccountService>[1]) {
   const root = mkdtempSync(path.join(tmpdir(), "paseo-provider-account-service-"));
   roots.push(root);
   let nextId = 0;
@@ -22,7 +26,7 @@ function createService() {
     createId: () => `pac_${String(++nextId).padStart(16, "0")}`,
     now: () => new Date("2026-08-23T00:00:00.000Z"),
   });
-  return new ProviderAccountService(store);
+  return new ProviderAccountService(store, options);
 }
 
 describe("ProviderAccountService", () => {
@@ -89,5 +93,18 @@ describe("ProviderAccountService", () => {
       envOverlay: {},
     });
     expect(service.resolveDefaultAccountId("opencode")).toBeNull();
+  });
+
+  it("refuses to remove an account pinned to an active agent", async () => {
+    const service = createService({
+      listActiveAgentIds: async () => ["agent-a", "agent-b"],
+    });
+    const account = await service.create({ provider: "codex", name: "Work" });
+
+    await expect(service.remove(account.id)).rejects.toMatchObject({
+      code: "provider_account_in_use",
+      agentIds: ["agent-a", "agent-b"],
+    } satisfies Partial<ProviderAccountInUseError>);
+    expect(service.list().accounts).toHaveLength(1);
   });
 });
