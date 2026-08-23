@@ -94,6 +94,17 @@ async function readDaemonStatus(paseoHome: string): Promise<DaemonStatus> {
   }
 }
 
+async function waitForRunningDaemon(paseoHome: string, supervisorPid: number): Promise<void> {
+  await waitFor(
+    async () => {
+      const status = await readDaemonStatus(paseoHome);
+      return status.localDaemon === "running" && status.pid === supervisorPid;
+    },
+    120000,
+    "daemon did not become responsive after worker restart",
+  );
+}
+
 async function readCapturedSupervisorLogs(paseoHome: string, recentLogs: string): Promise<string> {
   const durableLogs = await readFile(join(paseoHome, "daemon.log"), "utf8").catch(() => "");
   return `${recentLogs}\n${durableLogs}`;
@@ -216,6 +227,7 @@ try {
     "worker pid should change after restart",
   );
 
+  await waitForRunningDaemon(paseoHome, supervisorPid);
   const statusAfterRestart = await readDaemonStatus(paseoHome);
   assert.strictEqual(
     statusAfterRestart.localDaemon,
@@ -264,6 +276,7 @@ try {
     "worker pid did not change after managed CLI restart",
   );
 
+  await waitForRunningDaemon(paseoHome, supervisorPid);
   const statusAfterCliRestart = await readDaemonStatus(paseoHome);
   assert.strictEqual(statusAfterCliRestart.localDaemon, "running");
   assert.strictEqual(
