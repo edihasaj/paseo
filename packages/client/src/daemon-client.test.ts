@@ -5845,13 +5845,14 @@ test("sends provider.usage.list.request and resolves provider.usage.list.respons
   mock.triggerOpen();
   await connectPromise;
 
-  const usagePromise = client.listProviderUsage({ requestId: "usage-1" });
+  const usagePromise = client.listProviderUsage({ requestId: "usage-1", forceRefresh: true });
 
   expect(JSON.parse(assertStr(mock.sent[0]))).toEqual({
     type: "session",
     message: {
       type: "provider.usage.list.request",
       requestId: "usage-1",
+      forceRefresh: true,
     },
   });
 
@@ -5969,6 +5970,41 @@ test("lists and creates provider account profiles through namespaced RPC", async
   );
   await expect(createPromise).resolves.toMatchObject({
     accounts: [{ id: "pac_0123456789abcdef", provider: "codex", name: "Work" }],
+  });
+
+  mock.sent.length = 0;
+  const loginPromise = client.startProviderAccountLogin({
+    accountProfileId: "pac_0123456789abcdef",
+    requestId: "accounts-login-1",
+  });
+  expect(parseSentFrame(mock.sent[0])).toEqual({
+    type: "provider.account.login.start.request",
+    requestId: "accounts-login-1",
+    accountProfileId: "pac_0123456789abcdef",
+  });
+  mock.triggerMessage(
+    wrapSessionMessage({
+      type: "provider.account.login.start.response",
+      payload: {
+        requestId: "accounts-login-1",
+        login: {
+          accountProfileId: "pac_0123456789abcdef",
+          provider: "codex",
+          status: "waiting",
+          loginId: "login-1",
+          verificationUrl: "https://auth.openai.com/device",
+          userCode: "ABCD-EFGH",
+          error: null,
+          startedAt: "2026-08-24T00:00:00.000Z",
+          updatedAt: "2026-08-24T00:00:00.000Z",
+        },
+        accounts: [],
+        defaults: {},
+      },
+    }),
+  );
+  await expect(loginPromise).resolves.toMatchObject({
+    login: { status: "waiting", userCode: "ABCD-EFGH" },
   });
 });
 

@@ -27,6 +27,7 @@ import type { ProviderSnapshotManager } from "./agent/provider-snapshot-manager.
 import { WorkspaceLabelError, type WorkspaceLabelService } from "./workspace-labels/index.js";
 import { ProviderAccountService } from "./provider-accounts/service.js";
 import { ProviderAccountStore } from "./provider-accounts/store.js";
+import { ProviderAccountAuthManager } from "./provider-accounts/auth.js";
 import { createPersistedProjectRecord } from "./workspace-registry.js";
 import { deriveProjectKey } from "./project-key.js";
 import type { SessionOptions } from "./session.js";
@@ -493,6 +494,65 @@ test("manages provider account profiles through the session RPC boundary", async
         },
       },
     ]);
+  } finally {
+    await session.cleanup();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("starts, polls, and cancels provider account login through the session boundary", async () => {
+  const root = mkdtempSync(join(tmpdir(), "session-provider-account-login-"));
+  const messages: SessionOutboundMessage[] = [];
+  const store = new ProviderAccountStore(join(root, "provider-accounts"), {
+    createId: () => "pac_0123456789abcdef",
+    now: () => new Date("2026-08-24T00:00:00.000Z"),
+  });
+  const cancel = vi.fn(async () => undefined);
+  const never = new Promise<never>(() => undefined);
+  const authManager = new ProviderAccountAuthManager({
+    logger: pino({ level: "silent" }),
+    onAuthenticated: async () => undefined,
+    starters: {
+      codex: async () => ({
+        loginId: "login-1",
+        verificationUrl: "https://auth.openai.com/device",
+        userCode: "ABCD-EFGH",
+        completion: never,
+        cancel,
+      }),
+    },
+  });
+  const service = new ProviderAccountService(store, { authManager });
+  await service.create({ provider: "codex", name: "Work" });
+  const session = createSessionForTest({ messages, providerAccounts: service });
+
+  try {
+    await session.handleMessage({
+      type: "provider.account.login.start.request",
+      requestId: "login-start",
+      accountProfileId: "pac_0123456789abcdef",
+    });
+    await session.handleMessage({
+      type: "provider.account.login.status.request",
+      requestId: "login-status",
+      accountProfileId: "pac_0123456789abcdef",
+    });
+    await session.handleMessage({
+      type: "provider.account.login.cancel.request",
+      requestId: "login-cancel",
+      accountProfileId: "pac_0123456789abcdef",
+    });
+
+    expect(messages.map((message) => message.type)).toEqual([
+      "provider.account.login.start.response",
+      "provider.account.login.status.response",
+      "provider.account.login.cancel.response",
+    ]);
+    expect(messages[0]).toMatchObject({
+      payload: { login: { status: "waiting", userCode: "ABCD-EFGH" } },
+    });
+    expect(messages[2]).toMatchObject({ payload: { login: { status: "canceled" } } });
+    expect(cancel).toHaveBeenCalledOnce();
   } finally {
     await session.cleanup();
     rmSync(root, { recursive: true, force: true });

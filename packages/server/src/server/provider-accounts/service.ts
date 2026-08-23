@@ -4,7 +4,9 @@ import type {
   ProviderAccountProvider,
 } from "@getpaseo/protocol/provider-accounts";
 import type { ProcessEnvRecord } from "../paseo-env.js";
+import type { Logger } from "pino";
 import { getProviderAccountAdapter } from "./adapters.js";
+import { ProviderAccountAuthManager } from "./auth.js";
 import type { ProviderAccountRecord, ProviderAccountStore } from "./store.js";
 
 export class ProviderAccountProviderMismatchError extends Error {
@@ -30,6 +32,13 @@ export interface ProviderAccountListResult {
   defaults: Partial<Record<ProviderAccountProvider, string | null>>;
 }
 
+export interface ProviderAccountUsageScope {
+  accountProfileId: string;
+  accountName: string;
+  provider: ProviderAccountProvider;
+  runtimeHome: string;
+}
+
 export interface ResolvedProviderAccountLaunch {
   account: ProviderAccountProfile | null;
   envOverlay: ProcessEnvRecord;
@@ -37,13 +46,28 @@ export interface ResolvedProviderAccountLaunch {
 
 interface ProviderAccountServiceOptions {
   listActiveAgentIds?: (accountProfileId: string) => Promise<string[]>;
+  logger?: Logger;
+  authManager?: ProviderAccountAuthManager;
 }
 
 export class ProviderAccountService {
+  private readonly authManager: ProviderAccountAuthManager | null;
+
   constructor(
     private readonly store: ProviderAccountStore,
     private readonly options: ProviderAccountServiceOptions = {},
-  ) {}
+  ) {
+    this.authManager =
+      options.authManager ??
+      (options.logger
+        ? new ProviderAccountAuthManager({
+            logger: options.logger,
+            onAuthenticated: async (accountProfileId, identity) => {
+              await this.store.updateIdentity(accountProfileId, identity);
+            },
+          })
+        : null);
+  }
 
   list(): ProviderAccountListResult {
     const snapshot = this.store.list();
@@ -51,6 +75,15 @@ export class ProviderAccountService {
       accounts: snapshot.accounts.map(this.toPublicProfile),
       defaults: { ...snapshot.defaults },
     };
+  }
+
+  listUsageScopes(): ProviderAccountUsageScope[] {
+    return this.store.list().accounts.map((account) => ({
+      accountProfileId: account.id,
+      accountName: account.name,
+      provider: account.provider,
+      runtimeHome: account.runtimeHome,
+    }));
   }
 
   create(input: {
@@ -82,7 +115,24 @@ export class ProviderAccountService {
   async remove(accountId: string): Promise<void> {
     const agentIds = await this.options.listActiveAgentIds?.(accountId);
     if (agentIds?.length) throw new ProviderAccountInUseError(agentIds);
+    if (this.authManager) {
+      await this.authManager.cancel(accountId).catch(() => undefined);
+    }
     await this.store.remove(accountId);
+  }
+
+  startLogin(accountId: string) {
+    return this.requireAuthManager().start(this.requireAccount(accountId));
+  }
+
+  getLoginStatus(accountId: string) {
+    this.requireAccount(accountId);
+    return this.requireAuthManager().status(accountId);
+  }
+
+  cancelLogin(accountId: string) {
+    this.requireAccount(accountId);
+    return this.requireAuthManager().cancel(accountId);
   }
 
   resolveLaunch(input: {
@@ -112,6 +162,11 @@ export class ProviderAccountService {
     const account = this.store.get(accountId);
     if (!account) throw new Error(`Provider account not found: ${accountId}`);
     return account;
+  }
+
+  private requireAuthManager(): ProviderAccountAuthManager {
+    if (!this.authManager) throw new Error("Provider account authentication is unavailable");
+    return this.authManager;
   }
 
   private toPublicProfile(account: ProviderAccountRecord): ProviderAccountProfile {

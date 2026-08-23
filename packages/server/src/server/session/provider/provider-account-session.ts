@@ -17,6 +17,11 @@ type ProviderAccountResponseType =
   | "provider.account.default.set.response"
   | "provider.account.remove.response";
 
+type ProviderAccountLoginResponseType =
+  | "provider.account.login.start.response"
+  | "provider.account.login.status.response"
+  | "provider.account.login.cancel.response";
+
 export class ProviderAccountSession {
   private readonly host: ProviderAccountSessionHost;
   private readonly providerAccounts: ProviderAccountService | null;
@@ -64,6 +69,30 @@ export class ProviderAccountSession {
     );
   }
 
+  async handleLoginStart(
+    request: Extract<SessionInboundMessage, { type: "provider.account.login.start.request" }>,
+  ): Promise<void> {
+    await this.runLogin(request, "provider.account.login.start.response", () =>
+      this.requireService().startLogin(request.accountProfileId),
+    );
+  }
+
+  async handleLoginStatus(
+    request: Extract<SessionInboundMessage, { type: "provider.account.login.status.request" }>,
+  ): Promise<void> {
+    await this.runLogin(request, "provider.account.login.status.response", async () =>
+      this.requireService().getLoginStatus(request.accountProfileId),
+    );
+  }
+
+  async handleLoginCancel(
+    request: Extract<SessionInboundMessage, { type: "provider.account.login.cancel.request" }>,
+  ): Promise<void> {
+    await this.runLogin(request, "provider.account.login.cancel.response", () =>
+      this.requireService().cancelLogin(request.accountProfileId),
+    );
+  }
+
   private async run(
     request: { requestId: string; type: string },
     responseType: ProviderAccountResponseType,
@@ -82,6 +111,27 @@ export class ProviderAccountSession {
     throw Object.assign(new Error("Provider account profiles unavailable"), {
       code: "provider_account_profiles_unavailable",
     });
+  }
+
+  private async runLogin(
+    request: { requestId: string; type: string },
+    responseType: ProviderAccountLoginResponseType,
+    operation: () => Promise<
+      Extract<
+        SessionOutboundMessage,
+        { type: "provider.account.login.status.response" }
+      >["payload"]["login"]
+    >,
+  ): Promise<void> {
+    try {
+      const login = await operation();
+      this.host.emit({
+        type: responseType,
+        payload: { requestId: request.requestId, login, ...this.requireService().list() },
+      });
+    } catch (error) {
+      this.emitError(request, error);
+    }
   }
 
   private emitState(type: ProviderAccountResponseType, requestId: string): void {

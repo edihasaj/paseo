@@ -345,6 +345,59 @@ describe("ProviderUsageService", () => {
       ],
     });
   });
+
+  it("lists managed accounts beside the system account and invalidates on registry changes", async () => {
+    const runtimeHome = mkdtempSync(join(tmpdir(), "usage-managed-codex-"));
+    writeCodexAuth(runtimeHome, "managed-token");
+    const accountScope = {
+      accountProfileId: "pac_0123456789abcdef",
+      accountName: "Client",
+      provider: "codex" as const,
+      runtimeHome,
+    };
+    const fetchApi = mockFetch(
+      new Map([
+        ["https://chatgpt.com/backend-api/wham/usage", () => jsonResponse(makeCodexResponse())],
+      ]),
+    );
+    const service = new ProviderUsageService({
+      logger: createLogger(),
+      fetch: fetchApi,
+      fetchers: [
+        usageFetcher({
+          providerId: "codex",
+          displayName: "Codex",
+          status: "available",
+          planLabel: "System plan",
+          windows: [],
+        }),
+      ],
+      accountSource: { listUsageScopes: () => [accountScope] },
+    });
+
+    try {
+      const first = await service.listUsage();
+      expect(first.providers).toHaveLength(2);
+      expect(first.providers[0]).toMatchObject({
+        providerId: "codex",
+        accountProfileId: null,
+        accountName: "System account",
+      });
+      expect(first.providers[1]).toMatchObject({
+        providerId: "codex",
+        accountProfileId: "pac_0123456789abcdef",
+        accountName: "Client",
+        status: "available",
+      });
+
+      accountScope.accountName = "Client renamed";
+      const renamed = await service.listUsage();
+      expect(renamed).not.toBe(first);
+      expect(renamed.providers[1]?.accountName).toBe("Client renamed");
+    } finally {
+      rmSync(runtimeHome, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("real provider usage fetchers", () => {

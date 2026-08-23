@@ -705,6 +705,10 @@ export type ProviderAccountStatePayload = Extract<
   SessionOutboundMessage,
   { type: "provider.account.list.response" }
 >["payload"];
+export type ProviderAccountLoginPayload = Extract<
+  SessionOutboundMessage,
+  { type: "provider.account.login.status.response" }
+>["payload"];
 export type ProjectListPayload = Extract<
   SessionOutboundMessage,
   { type: "project.list.response" }
@@ -2282,6 +2286,45 @@ export class DaemonClient {
       requestId: options.requestId,
       message: {
         type: "provider.account.remove.request",
+        accountProfileId: options.accountProfileId,
+      },
+    });
+  }
+
+  startProviderAccountLogin(options: {
+    accountProfileId: string;
+    requestId?: string;
+  }): Promise<ProviderAccountLoginPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.login.start.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.login.start.request",
+        accountProfileId: options.accountProfileId,
+      },
+    });
+  }
+
+  getProviderAccountLoginStatus(options: {
+    accountProfileId: string;
+    requestId?: string;
+  }): Promise<ProviderAccountLoginPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.login.status.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.login.status.request",
+        accountProfileId: options.accountProfileId,
+      },
+    });
+  }
+
+  cancelProviderAccountLogin(options: {
+    accountProfileId: string;
+    requestId?: string;
+  }): Promise<ProviderAccountLoginPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"provider.account.login.cancel.response">({
+      requestId: options.requestId,
+      message: {
+        type: "provider.account.login.cancel.request",
         accountProfileId: options.accountProfileId,
       },
     });
@@ -4876,11 +4919,15 @@ export class DaemonClient {
     });
   }
 
-  async listProviderUsage(options?: { requestId?: string }): Promise<ProviderUsageListPayload> {
+  async listProviderUsage(options?: {
+    requestId?: string;
+    forceRefresh?: boolean;
+  }): Promise<ProviderUsageListPayload> {
     return this.sendNamespacedCorrelatedSessionRequest({
       requestId: options?.requestId,
       message: {
         type: "provider.usage.list.request",
+        ...(options?.forceRefresh ? { forceRefresh: true } : {}),
       },
     });
   }

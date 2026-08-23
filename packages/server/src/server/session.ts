@@ -2532,6 +2532,12 @@ export class Session {
         return this.providerAccountSession.handleDefaultSet(msg);
       case "provider.account.remove.request":
         return this.providerAccountSession.handleRemove(msg);
+      case "provider.account.login.start.request":
+        return this.providerAccountSession.handleLoginStart(msg);
+      case "provider.account.login.status.request":
+        return this.providerAccountSession.handleLoginStatus(msg);
+      case "provider.account.login.cancel.request":
+        return this.providerAccountSession.handleLoginCancel(msg);
       default:
         return undefined;
     }

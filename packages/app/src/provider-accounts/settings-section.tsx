@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { Alert, Text, View } from "react-native";
-import { CircleUserRound, Pencil, Plus, Star, Trash2 } from "lucide-react-native";
+import { CircleUserRound, LogIn, Pencil, Plus, Star, Trash2 } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type {
   ProviderAccountProfile,
   ProviderAccountProvider,
+  ProviderAccountLogin,
 } from "@getpaseo/protocol/provider-accounts";
 import { Alert as InlineAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { ICON_SIZE } from "@/styles/theme";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { toErrorMessage } from "@/utils/error-messages";
 import { AccountEditModal } from "./account-edit-modal";
+import { ProviderAccountLoginModal } from "./login-modal";
 import { providerAccountCopy as copy } from "./copy";
 import { useProviderAccounts } from "./use-provider-accounts";
 
@@ -50,6 +52,7 @@ interface AccountRowProps {
   onEdit: (account: ProviderAccountProfile) => void;
   onDefault: (account: ProviderAccountProfile) => void;
   onRemove: (account: ProviderAccountProfile) => void;
+  onLogin: (account: ProviderAccountProfile) => void;
 }
 
 function AccountRow({
@@ -60,10 +63,12 @@ function AccountRow({
   onEdit,
   onDefault,
   onRemove,
+  onLogin,
 }: AccountRowProps): ReactElement {
   const handleDefault = useCallback(() => onDefault(account), [account, onDefault]);
   const handleEdit = useCallback(() => onEdit(account), [account, onEdit]);
   const handleRemove = useCallback(() => onRemove(account), [account, onRemove]);
+  const handleLogin = useCallback(() => onLogin(account), [account, onLogin]);
   return (
     <View
       style={[settingsStyles.row, !isFirst && settingsStyles.rowBorder, styles.accountRow]}
@@ -82,6 +87,14 @@ function AccountRow({
         </View>
       </View>
       <View style={styles.actions}>
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={LogIn}
+          onPress={handleLogin}
+          disabled={disabled}
+          accessibilityLabel={`${account.lastAuthenticatedAt ? copy.signInAgain : copy.signIn}: ${account.name}`}
+        />
         {!isDefault ? (
           <Button
             variant="ghost"
@@ -122,6 +135,7 @@ function ProviderAccountGroup({
   onDefault,
   onSystemDefault,
   onRemove,
+  onLogin,
 }: {
   provider: ProviderAccountProvider;
   accounts: ProviderAccountProfile[];
@@ -131,6 +145,7 @@ function ProviderAccountGroup({
   onDefault: (account: ProviderAccountProfile) => void;
   onSystemDefault: (provider: ProviderAccountProvider) => void;
   onRemove: (account: ProviderAccountProfile) => void;
+  onLogin: (account: ProviderAccountProfile) => void;
 }): ReactElement {
   const ProviderIcon = getProviderIcon(provider);
   const systemIsDefault = defaultId === null;
@@ -176,6 +191,7 @@ function ProviderAccountGroup({
           onEdit={onEdit}
           onDefault={onDefault}
           onRemove={onRemove}
+          onLogin={onLogin}
         />
       ))}
     </View>
@@ -187,6 +203,8 @@ export function ProviderAccountsSettingsSection({ serverId }: { serverId: string
   const [editAccount, setEditAccount] = useState<ProviderAccountProfile | null | undefined>(
     undefined,
   );
+  const [loginAccount, setLoginAccount] = useState<ProviderAccountProfile | null>(null);
+  const [login, setLogin] = useState<ProviderAccountLogin | null>(null);
   const openCreate = useCallback(() => setEditAccount(null), []);
   const closeEdit = useCallback(() => setEditAccount(undefined), []);
   const openEdit = useCallback((account: ProviderAccountProfile) => setEditAccount(account), []);
@@ -229,6 +247,44 @@ export function ProviderAccountsSettingsSection({ serverId }: { serverId: string
     },
     [operations],
   );
+  const handleLogin = useCallback(
+    (account: ProviderAccountProfile) => {
+      setLoginAccount(account);
+      setLogin(null);
+      void operations
+        .startLogin(account.id)
+        .then(setLogin)
+        .catch((error) => {
+          Alert.alert(copy.signInFailed, toErrorMessage(error));
+          setLoginAccount(null);
+        });
+    },
+    [operations],
+  );
+  const pollLogin = useCallback(async () => {
+    if (!loginAccount) return;
+    try {
+      setLogin(await operations.getLoginStatus(loginAccount.id));
+    } catch (error) {
+      Alert.alert(copy.signInFailed, toErrorMessage(error));
+      setLoginAccount(null);
+    }
+  }, [loginAccount, operations]);
+  const cancelLogin = useCallback(async () => {
+    if (!loginAccount) return;
+    try {
+      await operations.cancelLogin(loginAccount.id);
+    } catch (error) {
+      Alert.alert(copy.signInFailed, toErrorMessage(error));
+    } finally {
+      setLoginAccount(null);
+      setLogin(null);
+    }
+  }, [loginAccount, operations]);
+  const closeLogin = useCallback(() => {
+    setLoginAccount(null);
+    setLogin(null);
+  }, []);
   const grouped = useMemo(
     () =>
       Object.fromEntries(
@@ -291,6 +347,7 @@ export function ProviderAccountsSettingsSection({ serverId }: { serverId: string
                 onDefault={handleDefault}
                 onSystemDefault={handleSystemDefault}
                 onRemove={handleRemove}
+                onLogin={handleLogin}
               />
             ))
           : null}
@@ -301,6 +358,13 @@ export function ProviderAccountsSettingsSection({ serverId }: { serverId: string
         onClose={closeEdit}
         onCreate={operations.create}
         onRename={operations.rename}
+      />
+      <ProviderAccountLoginModal
+        account={loginAccount}
+        login={login}
+        onPoll={pollLogin}
+        onCancel={cancelLogin}
+        onClose={closeLogin}
       />
     </>
   );

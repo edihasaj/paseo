@@ -913,6 +913,7 @@ export async function createPaseoDaemon(
   const providerAccounts = new ProviderAccountService(
     new ProviderAccountStore(path.join(config.paseoHome, "provider-accounts")),
     {
+      logger,
       listActiveAgentIds: async (accountProfileId) =>
         (await agentStorage.list())
           .filter(

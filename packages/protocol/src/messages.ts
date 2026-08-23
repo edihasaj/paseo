@@ -9,6 +9,7 @@ import { WORKSPACE_LABEL_COLORS } from "./workspace-labels.js";
 import {
   ProviderAccountProfileSchema,
   ProviderAccountProviderSchema,
+  ProviderAccountLoginSchema,
 } from "./provider-accounts.js";
 import {
   ChatCreateRequestSchema,
@@ -1076,6 +1077,24 @@ export const ProviderAccountRemoveRequestSchema = z.object({
   accountProfileId: z.string(),
 });
 
+export const ProviderAccountLoginStartRequestSchema = z.object({
+  type: z.literal("provider.account.login.start.request"),
+  requestId: z.string(),
+  accountProfileId: z.string(),
+});
+
+export const ProviderAccountLoginStatusRequestSchema = z.object({
+  type: z.literal("provider.account.login.status.request"),
+  requestId: z.string(),
+  accountProfileId: z.string(),
+});
+
+export const ProviderAccountLoginCancelRequestSchema = z.object({
+  type: z.literal("provider.account.login.cancel.request"),
+  requestId: z.string(),
+  accountProfileId: z.string(),
+});
+
 export const WorkspaceRecoveryInspectRequestSchema = z.object({
   type: z.literal("workspace.recovery.inspect.request"),
   workspaceId: z.string(),
@@ -1699,6 +1718,7 @@ export const ProviderDiagnosticRequestMessageSchema = z.object({
 export const ProviderUsageListRequestMessageSchema = z.object({
   type: z.literal("provider.usage.list.request"),
   requestId: z.string(),
+  forceRefresh: z.boolean().optional(),
 });
 
 export const ResumeAgentRequestMessageSchema = z.object({
@@ -3016,6 +3036,9 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   ProviderAccountRenameRequestSchema,
   ProviderAccountDefaultSetRequestSchema,
   ProviderAccountRemoveRequestSchema,
+  ProviderAccountLoginStartRequestSchema,
+  ProviderAccountLoginStatusRequestSchema,
+  ProviderAccountLoginCancelRequestSchema,
   WorkspaceRecoveryInspectRequestSchema,
   WorkspaceRecoveryRestoreRequestSchema,
   SetVoiceModeMessageSchema,
@@ -4078,6 +4101,28 @@ export const ProviderAccountDefaultSetResponseSchema = z.object({
 export const ProviderAccountRemoveResponseSchema = z.object({
   type: z.literal("provider.account.remove.response"),
   payload: ProviderAccountStatePayloadSchema,
+});
+
+const ProviderAccountLoginPayloadSchema = z.object({
+  requestId: z.string(),
+  login: ProviderAccountLoginSchema,
+  accounts: z.array(ProviderAccountProfileSchema),
+  defaults: ProviderAccountDefaultsSchema,
+});
+
+export const ProviderAccountLoginStartResponseSchema = z.object({
+  type: z.literal("provider.account.login.start.response"),
+  payload: ProviderAccountLoginPayloadSchema,
+});
+
+export const ProviderAccountLoginStatusResponseSchema = z.object({
+  type: z.literal("provider.account.login.status.response"),
+  payload: ProviderAccountLoginPayloadSchema,
+});
+
+export const ProviderAccountLoginCancelResponseSchema = z.object({
+  type: z.literal("provider.account.login.cancel.response"),
+  payload: ProviderAccountLoginPayloadSchema,
 });
 
 export const ProjectUpdateMessageSchema = z.object({
@@ -5821,6 +5866,8 @@ export const ProviderUsageDetailSchema = z.object({
 export const ProviderUsageSchema = z.object({
   providerId: z.string(),
   displayName: z.string(),
+  accountProfileId: z.string().nullable().optional(),
+  accountName: z.string().optional(),
   status: ProviderUsageStatusSchema,
   planLabel: z.string().nullable(),
   sourceLabel: z.string().nullable().optional(),
@@ -6286,6 +6333,9 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ProviderAccountRenameResponseSchema,
   ProviderAccountDefaultSetResponseSchema,
   ProviderAccountRemoveResponseSchema,
+  ProviderAccountLoginStartResponseSchema,
+  ProviderAccountLoginStatusResponseSchema,
+  ProviderAccountLoginCancelResponseSchema,
   ProjectUpdateMessageSchema,
   ProjectListResponseMessageSchema,
   ScriptStatusUpdateMessageSchema,

@@ -30,6 +30,30 @@ export const ProviderAccountProfileSchema = z
 
 export type ProviderAccountProfile = z.infer<typeof ProviderAccountProfileSchema>;
 
+export const ProviderAccountLoginStatusSchema = z.enum([
+  "starting",
+  "waiting",
+  "succeeded",
+  "failed",
+  "canceled",
+]);
+
+export const ProviderAccountLoginSchema = z
+  .object({
+    accountProfileId: z.string(),
+    provider: ProviderAccountProviderSchema,
+    status: ProviderAccountLoginStatusSchema,
+    loginId: z.string().nullable(),
+    verificationUrl: z.string().url().nullable(),
+    userCode: z.string().nullable(),
+    error: z.string().nullable(),
+    startedAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export type ProviderAccountLogin = z.infer<typeof ProviderAccountLoginSchema>;
+
 export function normalizeProviderAccountName(name: string): string {
   return name.replace(/\s+/g, " ").trim();
 }

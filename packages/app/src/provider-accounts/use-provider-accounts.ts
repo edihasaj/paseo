@@ -6,6 +6,7 @@ import type {
 } from "@getpaseo/client/internal/daemon-client";
 import type {
   ProviderAccountProfile,
+  ProviderAccountLogin,
   ProviderAccountProvider,
 } from "@getpaseo/protocol/provider-accounts";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -19,6 +20,9 @@ type ProviderAccountClient = Pick<
   | "renameProviderAccount"
   | "setDefaultProviderAccount"
   | "removeProviderAccount"
+  | "startProviderAccountLogin"
+  | "getProviderAccountLoginStatus"
+  | "cancelProviderAccountLogin"
 >;
 
 type ProviderAccountMutation =
@@ -38,6 +42,9 @@ export interface ProviderAccountOperations {
   rename: (accountProfileId: string, name: string) => Promise<void>;
   setDefault: (provider: ProviderAccountProvider, accountProfileId: string | null) => Promise<void>;
   remove: (accountProfileId: string) => Promise<void>;
+  startLogin: (accountProfileId: string) => Promise<ProviderAccountLogin>;
+  getLoginStatus: (accountProfileId: string) => Promise<ProviderAccountLogin>;
+  cancelLogin: (accountProfileId: string) => Promise<ProviderAccountLogin>;
   refresh: () => Promise<void>;
   isMutating: boolean;
 }
@@ -107,6 +114,38 @@ export function useProviderAccounts(serverId: string | null): {
     if (!canFetch) return;
     await queryClient.invalidateQueries({ queryKey });
   }, [canFetch, queryClient, queryKey]);
+  const applyLoginPayload = useCallback(
+    (payload: Awaited<ReturnType<DaemonClient["getProviderAccountLoginStatus"]>>) => {
+      queryClient.setQueryData(queryKey, {
+        requestId: payload.requestId,
+        accounts: payload.accounts,
+        defaults: payload.defaults,
+      });
+      return payload.login;
+    },
+    [queryClient, queryKey],
+  );
+  const startLogin = useCallback(
+    async (accountProfileId: string) => {
+      if (!client) throw new Error("Provider account client unavailable");
+      return applyLoginPayload(await client.startProviderAccountLogin({ accountProfileId }));
+    },
+    [applyLoginPayload, client],
+  );
+  const getLoginStatus = useCallback(
+    async (accountProfileId: string) => {
+      if (!client) throw new Error("Provider account client unavailable");
+      return applyLoginPayload(await client.getProviderAccountLoginStatus({ accountProfileId }));
+    },
+    [applyLoginPayload, client],
+  );
+  const cancelLogin = useCallback(
+    async (accountProfileId: string) => {
+      if (!client) throw new Error("Provider account client unavailable");
+      return applyLoginPayload(await client.cancelProviderAccountLogin({ accountProfileId }));
+    },
+    [applyLoginPayload, client],
+  );
 
   const operations = useMemo<ProviderAccountOperations>(
     () => ({
@@ -115,10 +154,13 @@ export function useProviderAccounts(serverId: string | null): {
       setDefault: (provider, accountProfileId) =>
         execute({ kind: "default", provider, accountProfileId }),
       remove: (accountProfileId) => execute({ kind: "remove", accountProfileId }),
+      startLogin,
+      getLoginStatus,
+      cancelLogin,
       refresh,
       isMutating: mutation.isPending,
     }),
-    [execute, mutation.isPending, refresh],
+    [cancelLogin, execute, getLoginStatus, mutation.isPending, refresh, startLogin],
   );
 
   const view = useMemo<ProviderAccountsView>(() => {

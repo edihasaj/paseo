@@ -109,4 +109,34 @@ describe("provider account message fields", () => {
       payload: { requestId: "req-list", accounts: [], defaults: { codex: null } },
     });
   });
+
+  it("keeps login challenges credential-free across the RPC boundary", () => {
+    expect(
+      SessionInboundMessageSchema.parse({
+        type: "provider.account.login.start.request",
+        requestId: "req-login",
+        accountProfileId: "pac_0123456789abcdef",
+      }),
+    ).toMatchObject({ type: "provider.account.login.start.request" });
+    const parsed = SessionOutboundMessageSchema.parse({
+      type: "provider.account.login.start.response",
+      payload: {
+        requestId: "req-login",
+        login: {
+          accountProfileId: "pac_0123456789abcdef",
+          provider: "codex",
+          status: "waiting",
+          loginId: "login-1",
+          verificationUrl: "https://auth.openai.com/device",
+          userCode: "ABCD-EFGH",
+          error: null,
+          startedAt: "2026-08-24T00:00:00.000Z",
+          updatedAt: "2026-08-24T00:00:00.000Z",
+        },
+        accounts: [],
+        defaults: {},
+      },
+    });
+    expect(parsed).not.toHaveProperty("payload.token");
+  });
 });
