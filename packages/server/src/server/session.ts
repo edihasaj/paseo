@@ -2741,6 +2741,7 @@ export class Session {
       },
       agentId,
     );
+    await this.agentStorage.queueStore.clear(agentId);
 
     if (this.agentUpdates.hasSubscription()) {
       const payload = await this.agentUpdates.emitStoredRecord(archivedRecord);

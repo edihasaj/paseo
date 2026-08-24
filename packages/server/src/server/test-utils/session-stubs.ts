@@ -47,6 +47,7 @@ export function asAgentStorage(stub: {
     listByWorkspace: async () => [],
     queueStore: {
       subscribe: () => () => {},
+      clear: async () => {},
     },
     ...stub,
   });
