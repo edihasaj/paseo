@@ -2692,6 +2692,7 @@ export class Session {
     // Drain queued persistence from the just-closed agent before removing its
     // durable snapshot, otherwise an in-flight background write can recreate it.
     await this.agentManager.flush();
+    await this.agentStorage.queueStore.clear(agentId);
 
     try {
       await this.agentStorage.remove(agentId);
