@@ -1,5 +1,6 @@
 import { ipcRenderer } from "electron";
 import type { BrowserKeyboardPolicy, BrowserShortcutPrefix } from "./policy.js";
+import { installBrowserElementSelectorGuest } from "../browser-element-selector/guest.js";
 
 const POLICY_CHANNEL = "paseo:browser-keyboard-policy";
 const POLICY_REQUEST_CHANNEL = "paseo:browser-keyboard-policy-request";
@@ -97,3 +98,4 @@ ipcRenderer.on(POLICY_CHANNEL, (_event, value: BrowserKeyboardPolicyPayload) => 
 });
 
 ipcRenderer.send(POLICY_REQUEST_CHANNEL);
+installBrowserElementSelectorGuest();
