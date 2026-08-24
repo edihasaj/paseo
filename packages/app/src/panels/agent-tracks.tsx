@@ -1,4 +1,5 @@
-import { memo, useCallback, type ReactElement } from "react";
+import { memo, useCallback, useMemo, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
 import { AgentTaskList } from "@/composer/task-list";
@@ -19,6 +20,7 @@ import type { TodoEntry } from "@/types/stream";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openSupportingTab, toggleSupportingTab } from "@/workspace-tabs/side-panel";
+import { confirmDialog } from "@/utils/confirm-dialog";
 
 /**
  * The pane's ambient context — workspace changes, subagents, and tasks — as a row of pills above
@@ -46,6 +48,7 @@ export const AgentTracks = memo(function AgentTracks({
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
 }): ReactElement | null {
+  const { t } = useTranslation();
   const { tabId, openTab } = usePaneContext();
   const hasWorkspaceDiffStat = useWorkspaceHasDiffStat(serverId, workspaceId);
   const isCompact = useIsCompactFormFactor();
@@ -59,6 +62,40 @@ export const AgentTracks = memo(function AgentTracks({
   );
   const archiveSubagent = useArchiveSubagent({ serverId });
   const detachSubagent = useDetachSubagent({ serverId });
+  const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
+  const activeManagedSubagentIds = useMemo(
+    () =>
+      subagentRows
+        .filter((row) => row.kind === "paseo" && row.status === "running")
+        .map((row) => row.id),
+    [subagentRows],
+  );
+  const handleStopSubagent = useCallback(
+    (agentId: string) => {
+      if (!client) return;
+      void client.cancelAgent(agentId).catch(() => undefined);
+    },
+    [client],
+  );
+  const handleStopAllActive = useCallback(async () => {
+    if (!client || activeManagedSubagentIds.length === 0) return;
+    const names = subagentRows
+      .filter((row) => activeManagedSubagentIds.includes(row.id))
+      .map((row) => row.title)
+      .join(", ");
+    const confirmed = await confirmDialog({
+      title: t("subagents.stopAllConfirmTitle"),
+      message: t("subagents.stopAllConfirmMessage", {
+        count: activeManagedSubagentIds.length,
+        names,
+      }),
+      confirmLabel: t("subagents.stopAllAction"),
+      cancelLabel: t("common.actions.cancel"),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    await Promise.all(activeManagedSubagentIds.map((agentId) => client.cancelAgent(agentId)));
+  }, [activeManagedSubagentIds, client, subagentRows, t]);
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {
       const session = useSessionStore.getState().sessions[serverId];
@@ -127,6 +164,8 @@ export const AgentTracks = memo(function AgentTracks({
         onArchiveFinished={onArchiveFinished}
         archiveFinishedStatus={archiveFinishedStatus}
         onDetachSubagent={canDetachSubagents ? detachSubagent : undefined}
+        onStopSubagent={handleStopSubagent}
+        onStopAllActive={activeManagedSubagentIds.length > 0 ? handleStopAllActive : undefined}
       />
       <WorkspaceDiffStatPill
         serverId={serverId}
