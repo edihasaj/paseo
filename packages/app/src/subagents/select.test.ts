@@ -1,6 +1,10 @@
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { afterEach, describe, expect, it } from "vitest";
-import { selectProviderSubagentsForParent, selectSubagentsForParent } from "./select";
+import {
+  buildSubagentTree,
+  selectProviderSubagentsForParent,
+  selectSubagentsForParent,
+} from "./select";
 import { useProviderSubagentStore } from "./provider-store";
 import { useSessionStore, type Agent } from "@/stores/session-store";
 
@@ -199,6 +203,29 @@ describe("selectSubagentsForParent", () => {
 
     expect(parentRows.map((row) => row.id)).toEqual(["child"]);
     expect(childRows.map((row) => row.id)).toEqual(["grandchild"]);
+  });
+
+  it("projects managed descendants recursively with stable depth and keys", () => {
+    setAgents([
+      makeAgent({ id: "parent" }),
+      makeAgent({ id: "child", parentAgentId: "parent" }),
+      makeAgent({ id: "grandchild", parentAgentId: "child" }),
+    ]);
+
+    const tree = buildSubagentTree(
+      useSessionStore.getState(),
+      useProviderSubagentStore.getState(),
+      { serverId: SERVER_ID, parentAgentId: "parent" },
+      EMPTY_PENDING_ARCHIVE_IDS,
+      true,
+    );
+
+    expect(tree.map((node) => ({ key: node.key, depth: node.depth, id: node.row.id }))).toEqual([
+      { key: "agent:child", depth: 0, id: "child" },
+    ]);
+    expect(
+      tree[0]?.children.map((node) => ({ key: node.key, depth: node.depth, id: node.row.id })),
+    ).toEqual([{ key: "agent:grandchild", depth: 1, id: "grandchild" }]);
   });
 
   it("sorts by createdAt ascending", () => {

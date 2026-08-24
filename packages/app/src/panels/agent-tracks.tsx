@@ -9,6 +9,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { useSessionStore } from "@/stores/session-store";
 import {
   type ArchiveFinishedStatus,
+  type SubagentTreeNode,
   useArchiveSubagent,
   useDetachSubagent,
   type SubagentRow,
@@ -31,6 +32,7 @@ export const AgentTracks = memo(function AgentTracks({
   workspaceId,
   cwd,
   subagentRows,
+  subagentTree,
   tasks,
   archiveFinishedStatus,
   onArchiveFinished,
@@ -39,6 +41,7 @@ export const AgentTracks = memo(function AgentTracks({
   workspaceId: string;
   cwd: string;
   subagentRows: SubagentRow[];
+  subagentTree?: SubagentTreeNode[];
   tasks: TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
   onArchiveFinished: () => void;
@@ -116,6 +119,7 @@ export const AgentTracks = memo(function AgentTracks({
       <AgentTaskList tasks={tasks} />
       <SubagentsTrack
         rows={subagentRows}
+        tree={subagentTree}
         onOpenSubagent={handleOpenSubagent}
         onOpenProviderSubagent={handleOpenProviderSubagent}
         onArchiveSubagent={archiveSubagent}
