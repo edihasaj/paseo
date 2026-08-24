@@ -1,13 +1,15 @@
-import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { Fragment, useCallback, useMemo, useState, type ReactElement } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Archive, ChevronDown, ChevronRight, Unlink } from "lucide-react-native";
+import { Archive, ChevronDown, ChevronRight, Play, Unlink } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getProviderIcon } from "@/components/provider-icons";
 import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
+import { useAgentQueuePrompts } from "@/agent-queue/use-agent-queue";
+import { useSessionStore } from "@/stores/session-store";
 import {
   WorkspaceTabIcon,
   type WorkspaceTabPresentation,
@@ -24,6 +26,7 @@ import {
 const ThemedArchive = withUnistyles(Archive);
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronRight = withUnistyles(ChevronRight);
+const ThemedPlay = withUnistyles(Play);
 const ThemedUnlink = withUnistyles(Unlink);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -32,6 +35,7 @@ const foregroundMutedColorMapping = (theme: Theme) => ({
 });
 
 export interface SubagentsTrackProps {
+  serverId: string;
   rows: SubagentRow[];
   tree?: SubagentTreeNode[];
   onOpenSubagent: (id: string) => void;
@@ -97,6 +101,7 @@ function buildRowPresentation(row: SubagentRow): WorkspaceTabPresentation {
 }
 
 export function SubagentsTrack({
+  serverId,
   rows,
   tree,
   onOpenSubagent,
@@ -157,19 +162,23 @@ export function SubagentsTrack({
         </ComposerTrackActions>
       ) : null}
       {visibleRows.map(({ node, expanded }) => (
-        <SubagentsTrackRow
-          key={node.key}
-          row={node.row}
-          node={node}
-          depth={node.depth}
-          hasChildren={node.children.length > 0}
-          expanded={expanded}
-          onToggleExpanded={toggleExpanded}
-          onOpenSubagent={onOpenSubagent}
-          onOpenProviderSubagent={onOpenProviderSubagent}
-          onArchiveSubagent={onArchiveSubagent}
-          onDetachSubagent={onDetachSubagent}
-        />
+        <Fragment key={node.key}>
+          <SubagentsTrackRow
+            row={node.row}
+            node={node}
+            depth={node.depth}
+            hasChildren={node.children.length > 0}
+            expanded={expanded}
+            onToggleExpanded={toggleExpanded}
+            onOpenSubagent={onOpenSubagent}
+            onOpenProviderSubagent={onOpenProviderSubagent}
+            onArchiveSubagent={onArchiveSubagent}
+            onDetachSubagent={onDetachSubagent}
+          />
+          {node.row.kind === "paseo" ? (
+            <AgentQueueRows serverId={serverId} agentId={node.row.id} depth={node.depth + 1} />
+          ) : null}
+        </Fragment>
       ))}
     </ComposerTrackPill>
   );
@@ -227,6 +236,84 @@ function ArchiveFinishedRow({
       // pressing it shows up. Dismissing would hide the thing the press produces.
       closeOnSelect={false}
       onPress={onPress}
+    >
+      {renderRow}
+    </ComposerTrackRow>
+  );
+}
+
+function AgentQueueRows({
+  serverId,
+  agentId,
+  depth,
+}: {
+  serverId: string;
+  agentId: string;
+  depth: number;
+}): ReactElement | null {
+  const prompts = useAgentQueuePrompts({ serverId, agentId });
+  if (prompts.length === 0) return null;
+  return (
+    <>
+      {prompts.map((prompt) => (
+        <QueuedPromptTrackRow
+          key={prompt.id}
+          serverId={serverId}
+          agentId={agentId}
+          promptId={prompt.id}
+          text={prompt.text}
+          depth={depth}
+        />
+      ))}
+    </>
+  );
+}
+
+function QueuedPromptTrackRow({
+  serverId,
+  agentId,
+  promptId,
+  text,
+  depth,
+}: {
+  serverId: string;
+  agentId: string;
+  promptId: string;
+  text: string;
+  depth: number;
+}): ReactElement {
+  const { t } = useTranslation();
+  const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
+  const handleSendNow = useCallback(() => {
+    if (!client) return;
+    void client.sendAgentQueuePromptNow(agentId, promptId).catch(() => undefined);
+  }, [agentId, client, promptId]);
+  const renderRow = useCallback(
+    ({ active }: { active: boolean }) => (
+      <>
+        <View style={[styles.depthRail, { width: depth * 12 }]} />
+        <View style={styles.disclosure} />
+        <Text style={styles.queuePreview} numberOfLines={1}>
+          {text}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("composer.attachments.sendQueuedMessageNow")}
+          onPress={handleSendNow}
+          hitSlop={6}
+          style={active ? styles.queueActionActive : styles.queueAction}
+        >
+          <ThemedPlay size={ROW_ICON_SIZE} uniProps={foregroundMutedColorMapping} />
+        </Pressable>
+      </>
+    ),
+    [depth, handleSendNow, t, text],
+  );
+  return (
+    <ComposerTrackRow
+      accessibilityLabel={text}
+      testID={`subagents-track-queued-${promptId}`}
+      onPress={handleSendNow}
     >
       {renderRow}
     </ComposerTrackRow>
@@ -452,6 +539,22 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+  },
+  queuePreview: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foregroundMuted,
+  },
+  queueAction: {
+    padding: theme.spacing[1],
+    borderRadius: theme.borderRadius.sm,
+  },
+  queueActionActive: {
+    padding: theme.spacing[1],
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface2,
   },
   // `flexBasis: "auto"` rather than `flex: 1`: a zero-basis label contributes nothing to the row's
   // intrinsic width, so the panel measures itself at its floor and truncates every label at once.
