@@ -23,6 +23,7 @@ export interface ProviderSubagentRow {
   kind: "provider";
   id: string;
   parentAgentId: string;
+  parentSubagentId?: string | null;
   provider: ProviderSubagentDescriptorPayload["provider"];
   // `title` is the subagent type ("Explore", "general-purpose") and repeats across a fan-out;
   // `description` is the task it was given. Both are carried so presentation can choose which
@@ -102,14 +103,34 @@ export function buildSubagentTree(
       { serverId: params.serverId, parentAgentId },
       providerSubagentsSupported,
     );
-    return sortRows([...managed, ...provider]).map((row): SubagentTreeNode => {
+    const buildProviderNode = (
+      row: ProviderSubagentRow,
+      providerDepth: number,
+      providerAncestors: ReadonlySet<string>,
+    ): SubagentTreeNode => {
+      const key = treeKey(row);
+      const nextAncestors = new Set(providerAncestors);
+      nextAncestors.add(key);
+      const children = provider
+        .filter(
+          (candidate) =>
+            candidate.parentSubagentId === row.id && !nextAncestors.has(treeKey(candidate)),
+        )
+        .map((candidate) => buildProviderNode(candidate, providerDepth + 1, nextAncestors));
+      return { key, row, depth: providerDepth, children };
+    };
+    const providerRoots = provider.filter((row) => (row.parentSubagentId ?? null) === null);
+    return sortRows([...managed, ...providerRoots]).map((row): SubagentTreeNode => {
       const nextAncestors = new Set(ancestors);
       if (row.kind === "paseo") nextAncestors.add(row.id);
       return {
         key: treeKey(row),
         row,
         depth,
-        children: row.kind === "paseo" ? buildForParent(row.id, depth + 1, nextAncestors) : [],
+        children:
+          row.kind === "paseo"
+            ? buildForParent(row.id, depth + 1, nextAncestors)
+            : buildProviderNode(row, depth, new Set()).children,
       };
     });
   };
@@ -160,6 +181,7 @@ export function selectProviderSubagentsForParent(
       kind: "provider",
       id: subagent.id,
       parentAgentId: subagent.parentAgentId,
+      parentSubagentId: subagent.parentSubagentId ?? null,
       provider: subagent.provider,
       title: subagent.title,
       description: subagent.description,

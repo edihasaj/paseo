@@ -228,6 +228,50 @@ describe("selectSubagentsForParent", () => {
     ).toEqual([{ key: "agent:grandchild", depth: 1, id: "grandchild" }]);
   });
 
+  it("nests provider descendants only when their adapter supplies ancestry", () => {
+    setAgents([makeAgent({ id: "parent" })]);
+    useProviderSubagentStore.getState().applyUpdate(SERVER_ID, {
+      kind: "upsert",
+      subagent: {
+        id: "provider-root",
+        parentAgentId: "parent",
+        provider: "codex",
+        title: "Root child",
+        description: null,
+        status: "running",
+        createdAt: "2026-03-08T10:01:00.000Z",
+        updatedAt: "2026-03-08T10:01:00.000Z",
+        toolCallId: "call-root",
+      },
+    });
+    useProviderSubagentStore.getState().applyUpdate(SERVER_ID, {
+      kind: "upsert",
+      subagent: {
+        id: "provider-nested",
+        parentAgentId: "parent",
+        parentSubagentId: "provider-root",
+        provider: "codex",
+        title: "Nested child",
+        description: null,
+        status: "running",
+        createdAt: "2026-03-08T10:02:00.000Z",
+        updatedAt: "2026-03-08T10:02:00.000Z",
+        toolCallId: "call-nested",
+      },
+    });
+
+    const tree = buildSubagentTree(
+      useSessionStore.getState(),
+      useProviderSubagentStore.getState(),
+      { serverId: SERVER_ID, parentAgentId: "parent" },
+      EMPTY_PENDING_ARCHIVE_IDS,
+      true,
+    );
+
+    expect(tree.map((node) => node.row.id)).toEqual(["provider-root"]);
+    expect(tree[0]?.children.map((node) => node.row.id)).toEqual(["provider-nested"]);
+  });
+
   it("sorts by createdAt ascending", () => {
     setAgents([
       makeAgent({ id: "parent" }),

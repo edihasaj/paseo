@@ -4347,6 +4347,19 @@ export const ProviderSubagentDescriptorPayloadSchema = z.object({
   updatedAt: z.string(),
   toolCallId: z.string().nullable(),
   cwd: z.string().nullable().optional(),
+  // Provider adapters emit these only when native ancestry is explicit.
+  parentSubagentId: z.string().nullable().optional(),
+  depth: z.number().int().nonnegative().nullable().optional(),
+  capabilities: z
+    .object({
+      canOpen: z.boolean(),
+      canPrompt: z.boolean(),
+      canQueue: z.boolean(),
+      canSteer: z.boolean(),
+      canStop: z.boolean(),
+    })
+    .nullable()
+    .optional(),
   // Compact provider-owned context for the shared track. Providers choose what belongs here and
   // format it for display; clients must not parse provider-specific facts out of this string.
   subtitle: z.string().nullable().optional(),
