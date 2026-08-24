@@ -3641,6 +3641,7 @@ export const WorkspaceServicePayloadSchema = z.object({
   localUrl: z.string().nullable(),
   publicUrl: z.string().nullable(),
   command: z.string().nullable().optional().default(null),
+  openWhenHealthy: z.boolean().optional().default(false),
   observedAt: z.string(),
 });
 

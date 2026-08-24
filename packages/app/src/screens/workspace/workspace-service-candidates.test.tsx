@@ -55,6 +55,7 @@ const packageService: WorkspaceServicePayload = {
   localUrl: null,
   publicUrl: null,
   command: "pnpm run dev",
+  openWhenHealthy: false,
   observedAt: "2026-08-24T12:00:00.000Z",
 };
 const daemonClient = { createTerminal: createTerminalMock } as never;

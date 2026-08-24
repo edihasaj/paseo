@@ -563,6 +563,22 @@ export function WorkspaceScriptsButton({
   );
   const liveTerminalIdSet = useMemo(() => new Set(liveTerminalIds), [liveTerminalIds]);
   const pendingRestartRef = useRef<Set<string>>(new Set());
+  const autoOpenedServiceIdsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const opened = autoOpenedServiceIdsRef.current;
+    for (const service of serviceInventory.services) {
+      const url = service.publicUrl ?? service.localUrl;
+      if (service.openWhenHealthy && service.lifecycle === "healthy" && url) {
+        if (!opened.has(service.id)) {
+          opened.add(service.id);
+          void openServiceUrl(url, { openInApp: onOpenUrlInBrowserTab });
+        }
+      } else {
+        opened.delete(service.id);
+      }
+    }
+  }, [onOpenUrlInBrowserTab, serviceInventory.services]);
 
   const startScriptMutation = useMutation({
     mutationFn: async (scriptName: string) => {

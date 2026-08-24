@@ -69,6 +69,7 @@ test("merges sources by authority and ranks healthy services first", async () =>
       { scriptName: "dev", command: "npm run dev" },
       { scriptName: "preview", command: "npm run preview" },
     ],
+    listConfiguredOptions: () => new Map([["dev", { autoStart: true, openWhenHealthy: true }]]),
     now: () => new Date("2026-08-24T12:00:00.000Z"),
   });
 
@@ -80,5 +81,6 @@ test("merges sources by authority and ranks healthy services first", async () =>
     { source: "configured", label: "docs", lifecycle: "exited" },
   ]);
   expect(services.find((service) => service.source === "package")?.command).toBe("npm run preview");
+  expect(services.find((service) => service.label === "dev")?.openWhenHealthy).toBe(true);
   expect(services.some((service) => service.id === "terminal-duplicate")).toBe(false);
 });

@@ -62,6 +62,7 @@ import {
 import { WorkspaceServiceInventory } from "./workspace-services/workspace-service-inventory.js";
 import type { WorkspaceServiceRuntime } from "./workspace-services/workspace-service-runtime.js";
 import { listPackageServiceSuggestions } from "./workspace-services/package-service-suggestions.js";
+import { startConfiguredAutoStartServices } from "./workspace-services/auto-start.js";
 import type { DaemonConfigStore } from "./daemon-config-store.js";
 import { loadPersistedConfig } from "./persisted-config.js";
 import { releaseWorkspaceServicePortPlan } from "./workspace-service-port-registry.js";
@@ -247,7 +248,7 @@ import {
   handleWorkspaceSetupStatusRequest as handleWorkspaceSetupStatusRequestMessage,
 } from "./worktree-session.js";
 import { archiveByScope, type ActiveWorkspaceRef } from "./workspace-archive-service.js";
-import { WorkspaceSetupRuntime } from "./workspace-setup-runtime.js";
+import { WorkspaceSetupRuntime, type WorkspaceSetupOperation } from "./workspace-setup-runtime.js";
 
 function resolveWorkspaceSetupRuntime(
   runtime: WorkspaceSetupRuntime | undefined,
@@ -6553,7 +6554,7 @@ export class Session {
             currentSelection: this.getFocusedAgentSelectionForCwd(autoNameInput.workspace.cwd),
           }),
         startWorkspaceSetup: (workspaceId, operation) =>
-          this.workspaceSetupRuntime.start(workspaceId, operation),
+          this.startWorkspaceSetupWithServices(workspaceId, operation),
         emitWorkspaceUpdateForWorkspaceId: (workspaceId) =>
           this.emitWorkspaceUpdateForWorkspaceId(workspaceId),
         cacheWorkspaceSetupSnapshot: (workspaceId, snapshot) => {
@@ -6575,6 +6576,29 @@ export class Session {
       input,
       options,
     );
+  }
+
+  private startWorkspaceSetupWithServices(
+    workspaceId: string,
+    operation: WorkspaceSetupOperation,
+  ): void {
+    this.workspaceSetupRuntime.start(workspaceId, async (signal) => {
+      await operation(signal);
+      if (signal.aborted) return;
+      const workspace = await this.workspaceRegistry.get(workspaceId);
+      if (!workspace) return;
+      await startConfiguredAutoStartServices({
+        cwd: workspace.cwd,
+        workspaceId,
+        logger: this.sessionLogger,
+        launch: async (scriptName) => {
+          await this.workspaceScripts.launch({
+            workspaceId,
+            scriptName,
+          });
+        },
+      });
+    });
   }
 
   private async handleWorkspaceSetupStatusRequest(

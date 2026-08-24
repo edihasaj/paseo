@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import type { WorkspaceScriptPayload, WorkspaceServicePayload } from "@getpaseo/protocol/messages";
 import type { WorkspaceServiceRuntime } from "./workspace-service-runtime.js";
 import type { PackageServiceSuggestion } from "./package-service-suggestions.js";
+import {
+  listConfiguredServiceOptions,
+  type ConfiguredServiceOptions,
+} from "./configured-service-options.js";
 
 interface WorkspaceScriptsReader {
   list(workspaceId: string): Promise<WorkspaceScriptPayload[]>;
@@ -50,12 +54,17 @@ export class WorkspaceServiceInventory {
       runtime: WorkspaceServiceRuntime | null;
       resolveWorkspaceCwd: (workspaceId: string) => Promise<string | null>;
       listPackageSuggestions: (cwd: string) => Promise<PackageServiceSuggestion[]>;
+      listConfiguredOptions?: (cwd: string) => Map<string, ConfiguredServiceOptions>;
       now?: () => Date;
     },
   ) {}
 
   async list(workspaceId: string): Promise<WorkspaceServicePayload[]> {
     const now = (this.options.now ?? (() => new Date()))().toISOString();
+    const cwd = await this.options.resolveWorkspaceCwd(workspaceId);
+    const configuredOptions = cwd
+      ? (this.options.listConfiguredOptions ?? listConfiguredServiceOptions)(cwd)
+      : new Map<string, ConfiguredServiceOptions>();
     const scripts = await this.options.workspaceScripts.list(workspaceId);
     const configured = scripts
       .filter((script) => script.type === "service")
@@ -71,6 +80,7 @@ export class WorkspaceServiceInventory {
           localUrl: script.localProxyUrl ?? script.proxyUrl ?? null,
           publicUrl: script.publicProxyUrl ?? null,
           command: null,
+          openWhenHealthy: configuredOptions.get(script.scriptName)?.openWhenHealthy ?? false,
           observedAt: now,
         }),
       );
@@ -89,12 +99,12 @@ export class WorkspaceServiceInventory {
           localUrl: candidate.localUrl,
           publicUrl: candidate.publicUrl,
           command: null,
+          openWhenHealthy: false,
           observedAt: candidate.observedAt,
         }),
       );
 
     const configuredNames = new Set(configured.map((service) => service.label));
-    const cwd = await this.options.resolveWorkspaceCwd(workspaceId);
     const packageSuggestions = cwd ? await this.options.listPackageSuggestions(cwd) : [];
     const packages = packageSuggestions
       .filter((suggestion) => !configuredNames.has(suggestion.scriptName))
@@ -110,6 +120,7 @@ export class WorkspaceServiceInventory {
           localUrl: null,
           publicUrl: null,
           command: suggestion.command,
+          openWhenHealthy: false,
           observedAt: now,
         }),
       );

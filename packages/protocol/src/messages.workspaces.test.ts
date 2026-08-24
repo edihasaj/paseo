@@ -1193,6 +1193,7 @@ describe("workspace message schemas", () => {
       localUrl: null,
       publicUrl: null,
       command: "npm run dev",
+      openWhenHealthy: false,
       observedAt: "2026-08-24T12:00:00.000Z",
     });
     expect(service.command).toBe("npm run dev");
