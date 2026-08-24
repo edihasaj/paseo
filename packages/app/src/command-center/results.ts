@@ -1,5 +1,11 @@
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
+import type { MatchRange } from "@getpaseo/protocol/search/text-match";
 import type { CommandCenterContribution } from "./contributions";
+import {
+  compareCommandCenterScores,
+  parseCommandCenterQuery,
+  scoreCommandCenterText,
+} from "./query";
 
 export interface CommandCenterWorkspaceResult {
   kind: "workspace";
@@ -35,6 +41,7 @@ export interface CommandCenterContributionResult {
   id: string;
   contribution: CommandCenterContribution;
   searchText: string;
+  matches: MatchRange[];
   run(): void | Promise<void>;
 }
 
@@ -69,11 +76,6 @@ export interface CommandCenterListProjection {
   offsets: readonly number[];
 }
 
-function matchesQuery(searchText: string, query: string): boolean {
-  const normalized = query.trim().toLowerCase();
-  return !normalized || searchText.includes(normalized);
-}
-
 /** Join non-empty subtitle parts with " · ", dropping null/undefined/empty. */
 export function joinSubtitleParts(parts: readonly (string | null | undefined)[]): string {
   return parts.filter((part): part is string => Boolean(part)).join(" · ");
@@ -100,13 +102,24 @@ export function buildContributionSections(
   contributions: readonly CommandCenterContribution[],
   query: string,
 ): CommandCenterResultSection[] {
+  const parsedQuery = parseCommandCenterQuery(query);
+  if (parsedQuery.scope && parsedQuery.scope !== "action") return [];
   const groups = new Map<string, MutableCommandCenterResultSection>();
-  const hasQuery = Boolean(query.trim());
+  const hasQuery = Boolean(parsedQuery.text.trim());
 
   for (const contribution of contributions) {
     if (contribution.visibility === "query" && !hasQuery) continue;
     const searchText = contributionSearchText(contribution);
-    if (!matchesQuery(searchText, query)) continue;
+    const fields =
+      contribution.presentation.kind === "action"
+        ? [
+            contribution.presentation.title,
+            contribution.presentation.subtitle ?? "",
+            ...contribution.keywords,
+          ]
+        : [...contribution.presentation.path, ...contribution.keywords];
+    const scored = scoreCommandCenterText(parsedQuery, fields);
+    if (!scored) continue;
     const existing = groups.get(contribution.group);
     const title =
       contribution.presentation.kind === "action"
@@ -123,14 +136,24 @@ export function buildContributionSections(
       id: contribution.id,
       contribution,
       searchText,
+      matches: scored.matches,
       run: contribution.run,
     });
     groups.set(contribution.group, section);
   }
 
-  return [...groups.values()].sort(
-    (left, right) => left.rank - right.rank || left.id.localeCompare(right.id),
-  );
+  return [...groups.values()]
+    .map((section) => {
+      const results = [...section.results].sort((left, right) => {
+        if (left.kind !== "contribution" || right.kind !== "contribution") return 0;
+        const leftScored = scoreCommandCenterText(parsedQuery, [left.searchText]);
+        const rightScored = scoreCommandCenterText(parsedQuery, [right.searchText]);
+        if (leftScored && rightScored) return compareCommandCenterScores(leftScored, rightScored);
+        return left.id.localeCompare(right.id);
+      });
+      return { id: section.id, rank: section.rank, title: section.title, results };
+    })
+    .sort((left, right) => left.rank - right.rank || left.id.localeCompare(right.id));
 }
 
 export function projectCommandCenterRows(
