@@ -109,4 +109,24 @@ describe("observeTerminalServices", () => {
     await Promise.resolve();
     expect(observer.store.listForWorkspace("ws-1")).toEqual([]);
   });
+
+  it("retries an initially unavailable URL until the service becomes healthy", async () => {
+    vi.useFakeTimers();
+    const harness = managerHarness();
+    const probe = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const observer = observeTerminalServices({
+      terminalManager: harness.manager,
+      probe,
+      probeRetryDelayMs: 25,
+      onChange: vi.fn(),
+    });
+    harness.emitOutput("http://localhost:4173");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(observer.store.listForWorkspace("ws-1")[0]?.lifecycle).toBe("unhealthy");
+    await vi.advanceTimersByTimeAsync(25);
+    expect(observer.store.listForWorkspace("ws-1")[0]?.lifecycle).toBe("healthy");
+    expect(probe).toHaveBeenCalledTimes(2);
+    observer.dispose();
+    vi.useRealTimers();
+  });
 });

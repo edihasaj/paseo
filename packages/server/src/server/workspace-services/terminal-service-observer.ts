@@ -38,16 +38,40 @@ export function observeTerminalServices(options: {
   terminalManager: TerminalManager;
   store?: TerminalServiceStore;
   probe?: HealthProbe;
+  probeRetryDelayMs?: number;
+  maxProbeAttempts?: number;
   onChange: (workspaceId: string) => void;
 }): TerminalServiceObserver {
   const store = options.store ?? new TerminalServiceStore();
   const probe = options.probe ?? probeLocalService;
   let disposed = false;
+  const retryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const retryDelayMs = options.probeRetryDelayMs ?? 1_000;
+  const maxProbeAttempts = options.maxProbeAttempts ?? 10;
 
   const publish = (workspaceId: string) => {
     if (!disposed) options.onChange(workspaceId);
   };
-  const probeCandidate = (candidate: TerminalServiceCandidate) => {
+  const clearRetry = (candidateId: string) => {
+    const timer = retryTimers.get(candidateId);
+    if (timer) clearTimeout(timer);
+    retryTimers.delete(candidateId);
+  };
+  const scheduleRetry = (candidate: TerminalServiceCandidate, attempt: number) => {
+    if (attempt >= maxProbeAttempts) return;
+    clearRetry(candidate.id);
+    retryTimers.set(
+      candidate.id,
+      setTimeout(() => {
+        retryTimers.delete(candidate.id);
+        const current = store.get(candidate.id);
+        if (!disposed && current?.localUrl === candidate.localUrl) {
+          probeCandidate(current, attempt + 1);
+        }
+      }, retryDelayMs),
+    );
+  };
+  const probeCandidate = (candidate: TerminalServiceCandidate, attempt = 1) => {
     void probe(candidate.localUrl)
       .then((healthy) => {
         if (disposed) return undefined;
@@ -55,6 +79,8 @@ export function observeTerminalServices(options: {
         if (!current || current.localUrl !== candidate.localUrl) return undefined;
         store.setHealth(candidate.id, healthy);
         publish(candidate.workspaceId);
+        if (healthy) clearRetry(candidate.id);
+        else scheduleRetry(candidate, attempt);
         return undefined;
       })
       .catch(() => {
@@ -62,6 +88,7 @@ export function observeTerminalServices(options: {
         if (!disposed && current?.localUrl === candidate.localUrl) {
           store.setHealth(candidate.id, false);
           publish(candidate.workspaceId);
+          scheduleRetry(candidate, attempt);
         }
       });
   };
@@ -72,10 +99,15 @@ export function observeTerminalServices(options: {
     );
     if (candidates.length === 0) return;
     publish(event.workspaceId);
-    for (const candidate of candidates) probeCandidate(candidate);
+    for (const candidate of candidates) {
+      clearRetry(candidate.id);
+      probeCandidate(candidate);
+    }
   };
   const handleExit = (event: TerminalExitEvent) => {
-    if (store.removeTerminal(event.terminalId).length > 0) publish(event.workspaceId);
+    const removedIds = store.removeTerminal(event.terminalId);
+    for (const id of removedIds) clearRetry(id);
+    if (removedIds.length > 0) publish(event.workspaceId);
   };
 
   const unsubscribeOutput = options.terminalManager.subscribeTerminalOutput?.(handleOutput);
@@ -84,6 +116,7 @@ export function observeTerminalServices(options: {
     store,
     dispose: () => {
       disposed = true;
+      for (const id of retryTimers.keys()) clearRetry(id);
       unsubscribeOutput?.();
       unsubscribeExit?.();
     },
