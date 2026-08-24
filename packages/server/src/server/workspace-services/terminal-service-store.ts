@@ -50,6 +50,11 @@ export class TerminalServiceStore {
     this.maxCandidatesPerTerminal = options.maxCandidatesPerTerminal ?? 8;
   }
 
+  get(id: string): TerminalServiceCandidate | null {
+    const candidate = this.candidates.get(id);
+    return candidate ? cloneCandidate(candidate) : null;
+  }
+
   observeOutput(identity: TerminalIdentity, chunk: string): TerminalServiceCandidate[] {
     const detector = this.detectors.get(identity.terminalId) ?? new LocalServiceUrlStreamDetector();
     this.detectors.set(identity.terminalId, detector);
