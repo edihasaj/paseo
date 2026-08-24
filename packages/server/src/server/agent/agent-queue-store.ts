@@ -26,6 +26,7 @@ export class AgentQueueStore {
   private readonly promptsByAgent = new Map<string, AgentQueuedPrompt[]>();
   private readonly loadPromises = new Map<string, Promise<void>>();
   private readonly writesByAgent = new Map<string, Promise<void>>();
+  private readonly listeners = new Set<(agentId: string, prompts: AgentQueuedPrompt[]) => void>();
 
   constructor(
     private readonly agentRoot: string,
@@ -67,16 +68,17 @@ export class AgentQueueStore {
     attachments?: AgentAttachment[];
   }): Promise<AgentQueuedPrompt | null> {
     const text = input.text.trim();
-    if (!text && !input.attachments?.length) {
-      throw new Error("Queued prompt needs text or an attachment");
-    }
     return this.mutate(input.agentId, (current) => {
       const index = current.findIndex((prompt) => prompt.id === input.promptId);
       if (index < 0) return { next: current, value: null };
+      const attachments = input.attachments ?? current[index]!.attachments;
+      if (!text && attachments.length === 0) {
+        throw new Error("Queued prompt needs text or an attachment");
+      }
       const updated: AgentQueuedPrompt = {
         ...current[index]!,
         text,
-        attachments: [...(input.attachments ?? [])],
+        attachments: [...attachments],
       };
       const next = [...current];
       next[index] = updated;
@@ -124,6 +126,11 @@ export class AgentQueueStore {
     await this.mutate(agentId, () => ({ next: [], value: undefined }));
   }
 
+  subscribe(listener: (agentId: string, prompts: AgentQueuedPrompt[]) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
   private async mutate<T>(
     agentId: string,
     mutation: (current: AgentQueuedPrompt[]) => { next: AgentQueuedPrompt[]; value: T },
@@ -142,6 +149,13 @@ export class AgentQueueStore {
         const result = mutation(this.promptsByAgent.get(agentId) ?? []);
         this.promptsByAgent.set(agentId, result.next);
         await writeJsonFileAtomic(this.filePath(agentId), { prompts: result.next });
+        for (const listener of this.listeners) {
+          try {
+            listener(agentId, result.next.map(clone));
+          } catch {
+            // Queue persistence remains authoritative if a presentation subscriber fails.
+          }
+        }
         resolveValue(result.value);
         return undefined;
       })

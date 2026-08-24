@@ -691,6 +691,7 @@ export class Session {
   private readonly clientCapabilitiesBySource = new Map<object, ReadonlySet<ClientCapability>>();
   private readonly defaultTimelineSubscriptionSource = {};
   private unsubscribeTerminalWorkspaceContributionEvents: (() => void) | null = null;
+  private unsubscribeAgentQueueUpdates: (() => void) | null = null;
   private readonly agentUpdates: AgentUpdatesService;
   private workspaceUpdatesSubscription: WorkspaceUpdatesSubscriptionState | null = null;
   private readonly workspaceLabelService: WorkspaceLabelService | null;
@@ -830,6 +831,12 @@ export class Session {
     });
     this.agentManager = agentManager;
     this.agentStorage = agentStorage;
+    this.unsubscribeAgentQueueUpdates = this.agentStorage.queueStore.subscribe(
+      (agentId, prompts) => {
+        if (!this.supports(CLIENT_CAPS.agentQueue)) return;
+        this.emit({ type: "agent.queue.update", payload: { agentId, prompts } });
+      },
+    );
     this.projectRegistry = projectRegistry;
     this.workspaceRegistry = workspaceRegistry;
     this.directorySync = resolveDirectorySync(directorySync);
@@ -2184,6 +2191,13 @@ export class Session {
         return this.handleProviderSubagentListRequest(msg);
       case "agent.provider_subagents.timeline.get.request":
         return this.handleProviderSubagentTimelineRequest(msg);
+      case "agent.queue.list.request":
+      case "agent.queue.create.request":
+      case "agent.queue.update.request":
+      case "agent.queue.reorder.request":
+      case "agent.queue.delete.request":
+      case "agent.queue.send_now.request":
+        return this.handleAgentQueueRequest(msg);
       case "agent.timeline.set_subscription.request": {
         const agentIds = [...new Set(msg.agentIds)].sort();
         if (
@@ -7100,6 +7114,92 @@ export class Session {
     }
   }
 
+  private async handleAgentQueueRequest(
+    msg: Extract<SessionInboundMessage, { type: `agent.queue.${string}.request` }>,
+  ): Promise<void> {
+    const responseType = {
+      "agent.queue.list.request": "agent.queue.list.response",
+      "agent.queue.create.request": "agent.queue.create.response",
+      "agent.queue.update.request": "agent.queue.update.response",
+      "agent.queue.reorder.request": "agent.queue.reorder.response",
+      "agent.queue.delete.request": "agent.queue.delete.response",
+      "agent.queue.send_now.request": "agent.queue.send_now.response",
+    } as const;
+    try {
+      if (!(await this.agentStorage.get(msg.agentId))) {
+        throw new Error("Agent not found");
+      }
+      let prompt = null;
+      switch (msg.type) {
+        case "agent.queue.create.request":
+          prompt = await this.agentStorage.queueStore.enqueue({
+            agentId: msg.agentId,
+            text: msg.text,
+            attachments: msg.attachments,
+            createdByClientId: this.clientId,
+          });
+          break;
+        case "agent.queue.update.request":
+          prompt = await this.agentStorage.queueStore.update({
+            agentId: msg.agentId,
+            promptId: msg.promptId,
+            text: msg.text,
+            attachments: msg.attachments,
+          });
+          break;
+        case "agent.queue.reorder.request":
+          await this.agentStorage.queueStore.reorder(msg.agentId, msg.promptIds);
+          break;
+        case "agent.queue.delete.request":
+          prompt = await this.agentStorage.queueStore.delete(msg.agentId, msg.promptId);
+          break;
+        case "agent.queue.send_now.request": {
+          const queued = await this.agentStorage.queueStore.take(msg.agentId, msg.promptId);
+          if (!queued) break;
+          try {
+            await sendPromptToAgent({
+              agentManager: this.agentManager,
+              agentStorage: this.agentStorage,
+              agentId: msg.agentId,
+              prompt: buildAgentPrompt(queued.text, undefined, queued.attachments),
+              activeTurnBehavior: "interrupt",
+              clearPendingPermissions: true,
+              logger: this.sessionLogger,
+            });
+            prompt = queued;
+          } catch (error) {
+            await this.agentStorage.queueStore.restoreFront(queued);
+            throw error;
+          }
+          break;
+        }
+        case "agent.queue.list.request":
+          break;
+      }
+      const prompts = await this.agentStorage.queueStore.list(msg.agentId);
+      this.emit({
+        type: responseType[msg.type],
+        payload: {
+          requestId: msg.requestId,
+          agentId: msg.agentId,
+          prompts,
+          ...(prompt ? { prompt } : {}),
+          error: null,
+        },
+      });
+    } catch (error) {
+      this.emit({
+        type: responseType[msg.type],
+        payload: {
+          requestId: msg.requestId,
+          agentId: msg.agentId,
+          prompts: [],
+          error: error instanceof Error ? error.message : String(error),
+        },
+      });
+    }
+  }
+
   private async handleAgentForkContextRequest(
     msg: Extract<SessionInboundMessage, { type: "agent.fork_context.request" }>,
   ): Promise<void> {
@@ -7459,6 +7559,8 @@ export class Session {
       this.unsubscribeTerminalWorkspaceContributionEvents();
       this.unsubscribeTerminalWorkspaceContributionEvents = null;
     }
+    this.unsubscribeAgentQueueUpdates?.();
+    this.unsubscribeAgentQueueUpdates = null;
     this.providerCatalogSession.dispose();
 
     await this.voiceSession.cleanup();
