@@ -37,6 +37,8 @@ import {
 import type { Theme } from "@/styles/theme";
 import { useWorkspaceServiceRoutePreferencesStore } from "@/workspace-service-routes/store";
 import { buttonControlHeight } from "@/components/ui/control-geometry";
+import { useWorkspaceServices } from "@/workspace-services/use-workspace-services";
+import { WorkspaceServiceCandidates } from "./workspace-service-candidates";
 
 type RowActionIcon = "copy" | "open" | "restart" | "start" | "stop" | "terminal";
 
@@ -548,6 +550,10 @@ export function WorkspaceScriptsButton({
   const { t } = useTranslation();
   const toast = useToast();
   const client = useSessionStore((state) => state.sessions[serverId]?.client ?? null);
+  const workspaceDirectory = useSessionStore(
+    (state) => state.sessions[serverId]?.workspaces?.get(workspaceId)?.workspaceDirectory ?? null,
+  );
+  const serviceInventory = useWorkspaceServices({ client, workspaceId });
   const activeConnection = useHostRuntimeSnapshot(serverId)?.activeConnection ?? null;
   const preferredRouteKind = useWorkspaceServiceRoutePreferencesStore(
     (state) => state.byServerId[serverId] ?? null,
@@ -666,7 +672,10 @@ export function WorkspaceScriptsButton({
     [serverId, setPreferredRoute],
   );
 
-  if (scripts.length === 0) {
+  const hasSupplementaryServices = serviceInventory.services.some(
+    (service) => service.source !== "configured",
+  );
+  if (scripts.length === 0 && !hasSupplementaryServices && !serviceInventory.error) {
     return null;
   }
 
@@ -727,6 +736,19 @@ export function WorkspaceScriptsButton({
                   />
                 </Fragment>
               ))}
+              {scripts.length > 0 && (hasSupplementaryServices || serviceInventory.error) ? (
+                <DropdownMenuSeparator />
+              ) : null}
+              <WorkspaceServiceCandidates
+                client={client}
+                workspaceDirectory={workspaceDirectory}
+                services={serviceInventory.services}
+                error={serviceInventory.error}
+                onRefresh={serviceInventory.refresh}
+                onTerminalStarted={onScriptTerminalStarted}
+                onViewTerminal={onViewTerminal}
+                onOpenUrlInBrowserTab={onOpenUrlInBrowserTab}
+              />
             </View>
           </DropdownMenuContent>
         </DropdownMenu>
