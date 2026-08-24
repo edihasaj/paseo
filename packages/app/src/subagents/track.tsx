@@ -79,6 +79,10 @@ function flattenSubagentTree(
   return result;
 }
 
+function collectSubagentRows(nodes: SubagentTreeNode[]): SubagentRow[] {
+  return nodes.flatMap((node) => [node.row, ...collectSubagentRows(node.children)]);
+}
+
 /** Leading and action glyphs share one size so rows keep a single icon column. */
 const ROW_ICON_SIZE = 14;
 
@@ -105,9 +109,10 @@ export function SubagentsTrack({
   const { t } = useTranslation();
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
   const [expandedFinishedKeys, setExpandedFinishedKeys] = useState<Set<string>>(new Set());
+  const treeNodes = useMemo(() => tree ?? toFlatTree(rows), [rows, tree]);
   const visibleRows = useMemo(
-    () => flattenSubagentTree(tree ?? toFlatTree(rows), collapsedKeys, expandedFinishedKeys),
-    [collapsedKeys, expandedFinishedKeys, rows, tree],
+    () => flattenSubagentTree(treeNodes, collapsedKeys, expandedFinishedKeys),
+    [collapsedKeys, expandedFinishedKeys, treeNodes],
   );
   const toggleExpanded = useCallback((node: SubagentTreeNode, expanded: boolean) => {
     setCollapsedKeys((current) => {
@@ -132,7 +137,7 @@ export function SubagentsTrack({
 
   const flatRows = visibleRows.map(({ node }) => node.row);
   const pill = buildSubagentPillPresentation(t, flatRows);
-  const finishedCount = countFinishedSubagents(flatRows);
+  const finishedCount = countFinishedSubagents(collectSubagentRows(treeNodes));
   const showArchiveFinished = finishedCount > 0 || isArchivingFinished || isArchiveFinishedFailed;
 
   return (
