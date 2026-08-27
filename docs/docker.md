@@ -59,6 +59,7 @@ services:
   paseo:
     image: ghcr.io/getpaseo/paseo:latest
     restart: unless-stopped
+    stop_grace_period: 30s
     ports:
       - "6767:6767"
     environment:
@@ -67,6 +68,15 @@ services:
       - ./paseo-home:/home/paseo
       - ./workspace:/workspace
 ```
+
+The `/home/paseo` mount preserves Paseo records and provider session handles. On daemon startup,
+Paseo resumes eligible agents interrupted while running. An unavailable provider or expired
+provider conversation becomes an attention error instead of retrying on every restart.
+
+`stop_grace_period: 30s` gives the daemon time to flush state before Docker replaces the
+container. It cannot keep an in-flight provider process alive: a replacement still interrupts that
+turn. The recovered agent retains its conversation and can continue from the provider's persisted
+session.
 
 ## Installing Agents
 
