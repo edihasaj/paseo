@@ -116,7 +116,7 @@ describe("snapshot mutation ownership boundary", () => {
           updateAgentMetadata,
         }),
         agentStorage: createStub<SessionOptions["agentStorage"]>({
-      queueStore: createAgentQueueStoreStub(),
+          queueStore: createAgentQueueStoreStub(),
           list: async () => [],
           get: async () => storedRecord,
           applySnapshot: directStorageWrite,
