@@ -1,129 +1,136 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createElementSelectorController,
   type BrowserElementSelection,
   type ElementSelectorOutcome,
-  type ElementSelectorRuntime,
-  type ElementSelectorWebview,
 } from "./element-selector.electron";
 
-function selectorHarness() {
-  let installed: ((state: "installed" | "loading" | "unavailable") => void) | undefined;
-  let result: ((selection: BrowserElementSelection | null) => void) | undefined;
-  let timeout: (() => void) | undefined;
-  const cleared: string[] = [];
-  const destroyed: string[] = [];
-  const stopped: string[] = [];
-  const cancelledTimeouts: number[] = [];
-  const runtime: ElementSelectorRuntime = {
-    token: () => "session-1",
-    install: () =>
-      new Promise((resolve) => {
-        installed = resolve;
-      }),
-    watch: (_webview, token, onResult) => {
-      result = onResult;
-      return () => stopped.push(token);
-    },
-    clear: (_webview, token) => cleared.push(token),
-    destroy: (_webview, token) => destroyed.push(token),
-    timeout: (callback) => {
-      timeout = callback;
-      return 7;
-    },
-    cancelTimeout: (id) => cancelledTimeouts.push(id),
-  };
-  const webview = { isConnected: true, isLoading: () => false } as ElementSelectorWebview;
-  return {
-    runtime,
-    webview,
-    cleared,
-    destroyed,
-    stopped,
-    cancelledTimeouts,
-    install: (state: "installed" | "loading" | "unavailable") => installed?.(state),
-    select: (selection: BrowserElementSelection | null) => result?.(selection),
-    expire: () => timeout?.(),
-  };
+const { getDesktopHost } = vi.hoisted(() => ({ getDesktopHost: vi.fn() }));
+
+vi.mock("@/desktop/host", () => ({ getDesktopHost }));
+
+type Webview = HTMLElement & { isLoading?: () => boolean };
+
+function webview(options: { connected?: boolean; loading?: boolean } = {}): Webview {
+  const element = document.createElement("div") as Webview;
+  element.isLoading = () => options.loading === true;
+  if (options.connected !== false) document.body.appendChild(element);
+  return element;
 }
 
-async function settleInstallation(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
-}
+const selection: BrowserElementSelection = {
+  url: "https://example.test/",
+  selector: "main > button",
+  tag: "button",
+  text: "Save",
+  outerHTML: "<button>Save</button>",
+  computedStyles: { display: "block" },
+  boundingRect: { x: 1, y: 2, width: 3, height: 4 },
+  parentChain: ["main"],
+  children: [],
+} as unknown as BrowserElementSelection;
 
-describe("element selector owner", () => {
-  it("owns installation through selected completion", async () => {
-    const harness = selectorHarness();
-    const outcomes: ElementSelectorOutcome[] = [];
-    const controller = createElementSelectorController(harness.runtime);
+describe("createElementSelectorController", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    getDesktopHost.mockReset();
+  });
+
+  it("reports loading before the page settles instead of starting a session", () => {
+    const begin = vi.fn();
+    getDesktopHost.mockReturnValue({ browser: { beginElementSelection: begin } });
+    const controller = createElementSelectorController();
+
+    const result = controller.start({
+      browserId: "browser-1",
+      webview: webview({ loading: true }),
+      mode: "annotate",
+      onFinish: () => undefined,
+    });
+
+    expect(result).toBe("loading");
+    expect(begin).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailable when the desktop bridge is missing", () => {
+    getDesktopHost.mockReturnValue({ browser: {} });
+    const controller = createElementSelectorController();
 
     expect(
       controller.start({
-        webview: harness.webview,
+        browserId: "browser-1",
+        webview: webview(),
         mode: "annotate",
+        onFinish: () => undefined,
+      }),
+    ).toBe("unavailable");
+  });
+
+  it("finishes with the selection the bridge resolves", async () => {
+    let resolveSelection: (value: unknown) => void = () => undefined;
+    getDesktopHost.mockReturnValue({
+      browser: {
+        beginElementSelection: vi.fn(
+          () =>
+            new Promise((resolve) => {
+              resolveSelection = resolve;
+            }),
+        ),
+      },
+    });
+    const controller = createElementSelectorController();
+    const outcomes: ElementSelectorOutcome[] = [];
+
+    expect(
+      controller.start({
+        browserId: "browser-1",
+        webview: webview(),
+        mode: "screenshot",
         onFinish: (outcome) => outcomes.push(outcome),
       }),
     ).toBe("started");
-    harness.install("installed");
-    await settleInstallation();
-    const selection: BrowserElementSelection = {
-      url: "https://example.test/form",
-      selector: "#submit",
-      tag: "button",
-      text: "Submit",
-      outerHTML: '<button id="submit">Submit</button>',
-      computedStyles: {},
-      boundingRect: { x: 10, y: 20, width: 80, height: 30 },
-      reactSource: null,
-      parentChain: ["form"],
-      children: [],
-    };
-    harness.select(selection);
 
-    expect(outcomes).toEqual([
-      {
-        type: "selected",
-        mode: "annotate",
-        selection,
-      },
-    ]);
-    expect(harness.stopped).toEqual(["session-1"]);
-    expect(harness.cancelledTimeouts).toEqual([7]);
-  });
-
-  it("cleans up a cancelled session even when guest installation finishes late", async () => {
-    const harness = selectorHarness();
-    const outcomes: ElementSelectorOutcome[] = [];
-    const controller = createElementSelectorController(harness.runtime);
-
-    controller.start({
-      webview: harness.webview,
+    resolveSelection({
+      status: "selected",
       mode: "screenshot",
-      onFinish: (outcome) => outcomes.push(outcome),
+      selection,
+      screenshotDataUrl: "data:image/png;base64,AAA",
     });
-    controller.cancel();
-    harness.install("installed");
-    await settleInstallation();
+    await vi.waitFor(() => expect(outcomes).toHaveLength(1));
 
-    expect(outcomes).toEqual([{ type: "cancelled" }]);
-    expect(harness.cleared).toEqual(["session-1"]);
-    expect(harness.destroyed).toEqual(["session-1"]);
+    expect(outcomes[0]).toEqual({
+      type: "selected",
+      mode: "screenshot",
+      selection,
+      screenshotDataUrl: "data:image/png;base64,AAA",
+    });
   });
 
-  it("destroys the guest session when selection times out", () => {
-    const harness = selectorHarness();
+  it("cancels the in-flight bridge session when the webview goes away", () => {
+    const cancelElementSelection = vi.fn(() => Promise.resolve());
+    getDesktopHost.mockReturnValue({
+      browser: {
+        beginElementSelection: vi.fn(() => new Promise(() => undefined)),
+        cancelElementSelection,
+      },
+    });
+    const controller = createElementSelectorController();
+    const pane = webview();
     const outcomes: ElementSelectorOutcome[] = [];
-    const controller = createElementSelectorController(harness.runtime);
 
     controller.start({
-      webview: harness.webview,
+      browserId: "browser-1",
+      webview: pane,
       mode: "annotate",
       onFinish: (outcome) => outcomes.push(outcome),
     });
-    harness.expire();
+    controller.stopForWebview(pane);
 
-    expect(outcomes).toEqual([{ type: "failed", reason: "timeout" }]);
-    expect(harness.destroyed).toEqual(["session-1"]);
+    expect(cancelElementSelection).toHaveBeenCalledWith({
+      browserId: "browser-1",
+      token: expect.any(String),
+      mode: "annotate",
+    });
+    expect(outcomes).toEqual([{ type: "cancelled" }]);
   });
 });

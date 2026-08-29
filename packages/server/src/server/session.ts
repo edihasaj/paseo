@@ -16,6 +16,7 @@ import {
   type WorkspaceScriptListRequest,
   type WorkspaceScriptStartRequest,
   type WorkspaceScriptStopRequest,
+  type WorkspaceServiceListRequest,
   type CloseItemsRequest,
   type DirectorySuggestionsRequest,
   type ProjectPlacementPayload,
@@ -58,6 +59,10 @@ import {
   createWorkspaceScriptsService,
   type WorkspaceScriptsService,
 } from "./session/workspace-scripts/workspace-scripts-service.js";
+import { WorkspaceServiceInventory } from "./workspace-services/workspace-service-inventory.js";
+import type { WorkspaceServiceRuntime } from "./workspace-services/workspace-service-runtime.js";
+import { listPackageServiceSuggestions } from "./workspace-services/package-service-suggestions.js";
+import { startConfiguredAutoStartServices } from "./workspace-services/auto-start.js";
 import type { DaemonConfigStore } from "./daemon-config-store.js";
 import { loadPersistedConfig } from "./persisted-config.js";
 import { releaseWorkspaceServicePortPlan } from "./workspace-service-port-registry.js";
@@ -244,7 +249,7 @@ import {
   handleWorkspaceSetupStatusRequest as handleWorkspaceSetupStatusRequestMessage,
 } from "./worktree-session.js";
 import { archiveByScope, type ActiveWorkspaceRef } from "./workspace-archive-service.js";
-import { WorkspaceSetupRuntime } from "./workspace-setup-runtime.js";
+import { WorkspaceSetupRuntime, type WorkspaceSetupOperation } from "./workspace-setup-runtime.js";
 
 function resolveWorkspaceSetupRuntime(
   runtime: WorkspaceSetupRuntime | undefined,
@@ -507,6 +512,7 @@ export interface SessionOptions {
   hubRelationships?: HubRelationshipManagement;
   serviceProxy?: ServiceProxySubsystem;
   scriptRuntimeStore?: WorkspaceScriptRuntimeStore;
+  workspaceServiceRuntime?: WorkspaceServiceRuntime;
   workspaceSetupSnapshots?: Map<string, WorkspaceSetupSnapshot>;
   workspaceSetupRuntime?: WorkspaceSetupRuntime;
   onBranchChanged?: (
@@ -707,6 +713,7 @@ export class Session {
   private readonly defaultTimelineSubscriptionSource = {};
   private unsubscribeTerminalWorkspaceContributionEvents: (() => void) | null = null;
   private unsubscribeAgentQueueUpdates: (() => void) | null = null;
+  private unsubscribeWorkspaceServiceUpdates: (() => void) | null = null;
   private readonly agentUpdates: AgentUpdatesService;
   private workspaceUpdatesSubscription: WorkspaceUpdatesSubscriptionState | null = null;
   private readonly workspaceLabelService: WorkspaceLabelService | null;
@@ -751,6 +758,7 @@ export class Session {
   private readonly daemonSession: DaemonSession;
   private readonly hubExecutionController: HubExecutionController | null;
   private readonly workspaceScripts: WorkspaceScriptsService;
+  private readonly workspaceServices: WorkspaceServiceInventory;
   private readonly createAgentLifecycleDispatch: CreateAgentLifecycleDispatch;
 
   constructor(options: SessionOptions) {
@@ -795,6 +803,7 @@ export class Session {
       providerUsageService,
       serviceProxy,
       scriptRuntimeStore,
+      workspaceServiceRuntime,
       workspaceSetupSnapshots,
       workspaceSetupRuntime,
       onBranchChanged,
@@ -1069,10 +1078,13 @@ export class Session {
       serviceProxyPublicBaseUrl: this.serviceProxyPublicBaseUrl,
       resolveScriptHealth: this.resolveScriptHealth,
       logger: this.sessionLogger,
-      emit: (message) => this.emit(message),
+      emit: (message) => this.handleWorkspaceScriptsEmission(message),
       spawnWorkspaceScript,
       globalServicePorts: loadPersistedConfig(this.paseoHome).worktrees?.servicePorts,
     });
+    this.workspaceServices = this.createWorkspaceServiceInventory(workspaceServiceRuntime);
+    this.unsubscribeWorkspaceServiceUpdates =
+      this.subscribeToWorkspaceServiceRuntime(workspaceServiceRuntime);
     this.subscribeToOptionalManagers();
     this.workspaceDirectory = new WorkspaceDirectory({
       logger: this.sessionLogger,
@@ -2607,6 +2619,8 @@ export class Session {
         return this.handleWorkspaceScriptStartRequest(msg);
       case "workspace.script.stop.request":
         return this.handleWorkspaceScriptStopRequest(msg);
+      case "workspace.service.list.request":
+        return this.handleWorkspaceServiceListRequest(msg);
       default:
         return this.terminalController.dispatch(msg);
     }
@@ -6495,6 +6509,81 @@ export class Session {
     }
   }
 
+  private async handleWorkspaceServiceListRequest(
+    request: WorkspaceServiceListRequest,
+  ): Promise<void> {
+    try {
+      const services = await this.workspaceServices.list(request.workspaceId);
+      this.emit({
+        type: "workspace.service.list.response",
+        payload: {
+          requestId: request.requestId,
+          workspaceId: request.workspaceId,
+          services,
+          error: null,
+        },
+      });
+    } catch (error) {
+      this.emit({
+        type: "workspace.service.list.response",
+        payload: {
+          requestId: request.requestId,
+          workspaceId: request.workspaceId,
+          services: [],
+          error: error instanceof Error ? error.message : "Failed to list workspace services",
+        },
+      });
+    }
+  }
+
+  private async emitWorkspaceServiceUpdate(workspaceId: string): Promise<void> {
+    try {
+      this.emit({
+        type: "workspace.service.update",
+        payload: {
+          workspaceId,
+          services: await this.workspaceServices.list(workspaceId),
+        },
+      });
+    } catch (error) {
+      this.sessionLogger.warn(
+        { err: error, workspaceId },
+        "Failed to publish workspace service inventory",
+      );
+    }
+  }
+
+  private queueWorkspaceServiceUpdate(workspaceId: string): void {
+    if (!this.supports(CLIENT_CAPS.workspaceServiceInventory)) return;
+    void this.emitWorkspaceServiceUpdate(workspaceId);
+  }
+
+  private handleWorkspaceScriptsEmission(message: SessionOutboundMessage): void {
+    this.emit(message);
+    if (message.type === "script_status_update") {
+      this.queueWorkspaceServiceUpdate(message.payload.workspaceId);
+    }
+  }
+
+  private createWorkspaceServiceInventory(
+    runtime: WorkspaceServiceRuntime | undefined,
+  ): WorkspaceServiceInventory {
+    return new WorkspaceServiceInventory({
+      workspaceScripts: this.workspaceScripts,
+      runtime: runtime ?? null,
+      resolveWorkspaceCwd: async (workspaceId) =>
+        (await this.workspaceRegistry.get(workspaceId))?.cwd ?? null,
+      listPackageSuggestions: listPackageServiceSuggestions,
+    });
+  }
+
+  private subscribeToWorkspaceServiceRuntime(
+    runtime: WorkspaceServiceRuntime | undefined,
+  ): (() => void) | null {
+    if (!runtime) return null;
+    return runtime.subscribe((workspaceId) => this.queueWorkspaceServiceUpdate(workspaceId));
+  }
+
   private async handleWorkspaceScriptStartRequest(
     request: WorkspaceScriptStartRequest,
   ): Promise<void> {
@@ -6614,7 +6703,7 @@ export class Session {
             currentSelection: this.getFocusedAgentSelectionForCwd(autoNameInput.workspace.cwd),
           }),
         startWorkspaceSetup: (workspaceId, operation) =>
-          this.workspaceSetupRuntime.start(workspaceId, operation),
+          this.startWorkspaceSetupWithServices(workspaceId, operation),
         emitWorkspaceUpdateForWorkspaceId: (workspaceId) =>
           this.emitWorkspaceUpdateForWorkspaceId(workspaceId),
         cacheWorkspaceSetupSnapshot: (workspaceId, snapshot) => {
@@ -6636,6 +6725,29 @@ export class Session {
       input,
       options,
     );
+  }
+
+  private startWorkspaceSetupWithServices(
+    workspaceId: string,
+    operation: WorkspaceSetupOperation,
+  ): void {
+    this.workspaceSetupRuntime.start(workspaceId, async (signal) => {
+      await operation(signal);
+      if (signal.aborted) return;
+      const workspace = await this.workspaceRegistry.get(workspaceId);
+      if (!workspace) return;
+      await startConfiguredAutoStartServices({
+        cwd: workspace.cwd,
+        workspaceId,
+        logger: this.sessionLogger,
+        launch: async (scriptName) => {
+          await this.workspaceScripts.launch({
+            workspaceId,
+            scriptName,
+          });
+        },
+      });
+    });
   }
 
   private async handleWorkspaceSetupStatusRequest(
@@ -7779,6 +7891,8 @@ export class Session {
     }
     this.unsubscribeAgentQueueUpdates?.();
     this.unsubscribeAgentQueueUpdates = null;
+    this.unsubscribeWorkspaceServiceUpdates?.();
+    this.unsubscribeWorkspaceServiceUpdates = null;
     this.providerCatalogSession.dispose();
 
     await this.voiceSession.cleanup();

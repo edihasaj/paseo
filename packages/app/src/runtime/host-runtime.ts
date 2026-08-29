@@ -498,6 +498,7 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
     [CLIENT_CAPS.selectiveAgentTimeline]: true,
     [CLIENT_CAPS.timelineReplacementInvalidation]: true,
     [CLIENT_CAPS.agentQueue]: true,
+    [CLIENT_CAPS.workspaceServiceInventory]: true,
     ...browserAutomationCapabilities,
   };
 

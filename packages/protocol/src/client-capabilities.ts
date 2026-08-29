@@ -30,6 +30,9 @@ export const CLIENT_CAPS = {
   // COMPAT(agentQueue): added in v0.5.x. Capable clients receive daemon-owned
   // queue snapshots instead of renderer-local queued prompts.
   agentQueue: "agent_queue",
+  // COMPAT(workspaceServiceInventory): added in v0.5.x. Capable clients receive
+  // workspace-scoped service inventory updates in addition to legacy script status.
+  workspaceServiceInventory: "workspace_service_inventory",
   browserHost: "browser_host",
 } as const;
 

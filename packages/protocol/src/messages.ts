@@ -2903,6 +2903,12 @@ export const WorkspaceScriptStopRequestSchema = z.object({
   requestId: z.string(),
 });
 
+export const WorkspaceServiceListRequestSchema = z.object({
+  type: z.literal("workspace.service.list.request"),
+  workspaceId: z.string(),
+  requestId: z.string(),
+});
+
 export const SubscribeTerminalRequestSchema = z.object({
   type: z.literal("subscribe_terminal_request"),
   terminalId: z.string(),
@@ -3211,6 +3217,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   WorkspaceScriptListRequestSchema,
   WorkspaceScriptStartRequestSchema,
   WorkspaceScriptStopRequestSchema,
+  WorkspaceServiceListRequestSchema,
   SubscribeTerminalRequestSchema,
   UnsubscribeTerminalRequestSchema,
   TerminalInputSchema,
@@ -3533,6 +3540,8 @@ export const ServerInfoStatusPayloadSchema = z
         stableProjectIdentity: z.boolean().optional(),
         // COMPAT(workspaceScriptManagement): added in v0.1.105, remove gate after 2027-01-10.
         workspaceScriptManagement: z.boolean().optional(),
+        // COMPAT(workspaceServiceInventory): added in v0.5.x.
+        workspaceServiceInventory: z.boolean().optional(),
         // COMPAT(projectCustomIcon): added in v0.2.0, remove after 2027-01-20.
         projectCustomIcon: z.boolean().optional(),
         // COMPAT(fsEntryOps): added in v0.3.0, remove gate after 2027-02-08.
@@ -3745,6 +3754,21 @@ export const WorkspaceScriptPayloadSchema = z.object({
   health: WorkspaceScriptHealthSchema.nullable(),
   exitCode: z.number().nullable().optional().default(null),
   terminalId: z.string().nullable().optional().default(null),
+});
+
+export const WorkspaceServicePayloadSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  source: z.enum(["configured", "terminal", "package"]),
+  label: z.string(),
+  lifecycle: z.enum(["available", "starting", "healthy", "unhealthy", "stopped", "exited"]),
+  terminalId: z.string().nullable(),
+  port: z.number().int().positive().nullable(),
+  localUrl: z.string().nullable(),
+  publicUrl: z.string().nullable(),
+  command: z.string().nullable().optional().default(null),
+  openWhenHealthy: z.boolean().optional().default(false),
+  observedAt: z.string(),
 });
 
 const WorkspaceGitRuntimePayloadSchema = z
@@ -4164,6 +4188,14 @@ export const ScriptStatusUpdateMessageSchema = z.object({
   }),
 });
 
+export const WorkspaceServiceUpdateMessageSchema = z.object({
+  type: z.literal("workspace.service.update"),
+  payload: z.object({
+    workspaceId: z.string(),
+    services: z.array(WorkspaceServicePayloadSchema),
+  }),
+});
+
 export const WorkspaceSetupProgressMessageSchema = z.object({
   type: z.literal("workspace_setup_progress"),
   payload: z.object({
@@ -4311,6 +4343,16 @@ export const WorkspaceScriptStartResponseMessageSchema = z.object({
 export const WorkspaceScriptStopResponseMessageSchema = z.object({
   type: z.literal("workspace.script.stop.response"),
   payload: WorkspaceScriptOperationPayloadSchema,
+});
+
+export const WorkspaceServiceListResponseMessageSchema = z.object({
+  type: z.literal("workspace.service.list.response"),
+  payload: z.object({
+    requestId: z.string(),
+    workspaceId: z.string(),
+    services: z.array(WorkspaceServicePayloadSchema),
+    error: z.string().nullable(),
+  }),
 });
 
 // COMPAT(desktopEditorBridge): added in v0.1.88, remove after 2026-12-03 once old clients no longer parse daemon editor RPC responses.
@@ -6475,6 +6517,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   ProjectUpdateMessageSchema,
   ProjectListResponseMessageSchema,
   ScriptStatusUpdateMessageSchema,
+  WorkspaceServiceUpdateMessageSchema,
   WorkspaceSetupProgressMessageSchema,
   WorkspaceSetupStatusResponseMessageSchema,
   AgentStreamMessageSchema,
@@ -6492,6 +6535,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   WorkspaceScriptListResponseMessageSchema,
   WorkspaceScriptStartResponseMessageSchema,
   WorkspaceScriptStopResponseMessageSchema,
+  WorkspaceServiceListResponseMessageSchema,
   LegacyListAvailableEditorsResponseMessageSchema,
   LegacyOpenInEditorResponseMessageSchema,
   ArchiveWorkspaceResponseMessageSchema,
@@ -6675,6 +6719,7 @@ export type ProjectListResponseMessage = z.infer<typeof ProjectListResponseMessa
 export type WorkspaceScriptLifecycle = z.infer<typeof WorkspaceScriptLifecycleSchema>;
 export type WorkspaceScriptHealth = z.infer<typeof WorkspaceScriptHealthSchema>;
 export type WorkspaceScriptPayload = z.infer<typeof WorkspaceScriptPayloadSchema>;
+export type WorkspaceServicePayload = z.infer<typeof WorkspaceServicePayloadSchema>;
 export type FetchAgentsResponseMessage = z.infer<typeof FetchAgentsResponseMessageSchema>;
 export type FetchAgentHistoryResponseMessage = z.infer<
   typeof FetchAgentHistoryResponseMessageSchema
@@ -6698,8 +6743,12 @@ export type StartWorkspaceScriptResponseMessage = z.infer<
 export type WorkspaceScriptListRequest = z.infer<typeof WorkspaceScriptListRequestSchema>;
 export type WorkspaceScriptStartRequest = z.infer<typeof WorkspaceScriptStartRequestSchema>;
 export type WorkspaceScriptStopRequest = z.infer<typeof WorkspaceScriptStopRequestSchema>;
+export type WorkspaceServiceListRequest = z.infer<typeof WorkspaceServiceListRequestSchema>;
 export type WorkspaceScriptListResponseMessage = z.infer<
   typeof WorkspaceScriptListResponseMessageSchema
+>;
+export type WorkspaceServiceListResponseMessage = z.infer<
+  typeof WorkspaceServiceListResponseMessageSchema
 >;
 export type WorkspaceScriptStartResponseMessage = z.infer<
   typeof WorkspaceScriptStartResponseMessageSchema
@@ -7123,6 +7172,7 @@ export const WSHelloMessageSchema = z.object({
       [CLIENT_CAPS.compactProviderSnapshots]: z.boolean().optional(),
       [CLIENT_CAPS.timelineReplacementInvalidation]: z.boolean().optional(),
       [CLIENT_CAPS.agentQueue]: z.boolean().optional(),
+      [CLIENT_CAPS.workspaceServiceInventory]: z.boolean().optional(),
       [CLIENT_CAPS.browserHost]: BrowserAutomationHostCapabilitySchema.optional(),
     })
     .passthrough()
