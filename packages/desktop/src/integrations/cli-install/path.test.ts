@@ -8,9 +8,9 @@ describe("cli-install-path", () => {
         platform: "darwin",
         isPackaged: true,
         executablePath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
-        shimPath: "/Applications/Paseo.app/Contents/Resources/bin/paseo",
+        shimPath: "/Applications/Stroll.app/Contents/Resources/bin/stroll",
       }),
-    ).toBe("/Applications/Paseo.app/Contents/Resources/bin/paseo");
+    ).toBe("/Applications/Stroll.app/Contents/Resources/bin/stroll");
   });
 
   it("prefers the original AppImage path on linux", () => {
@@ -19,7 +19,7 @@ describe("cli-install-path", () => {
         platform: "linux",
         isPackaged: true,
         executablePath: "/tmp/.mount_paseo123/paseo",
-        shimPath: "/tmp/.mount_paseo123/resources/bin/paseo",
+        shimPath: "/tmp/.mount_stroll123/resources/bin/stroll",
         appImagePath: "/home/user/Applications/Paseo.AppImage",
       }),
     ).toBe("/home/user/Applications/Paseo.AppImage");
@@ -40,8 +40,8 @@ describe("cli-install-path", () => {
         platform: "linux",
         isPackaged: false,
         executablePath: "/opt/Paseo/paseo",
-        shimPath: "/opt/Paseo/resources/bin/paseo",
+        shimPath: "/opt/Stroll/resources/bin/stroll",
       }),
-    ).toBe("/opt/Paseo/resources/bin/paseo");
+    ).toBe("/opt/Stroll/resources/bin/stroll");
   });
 });

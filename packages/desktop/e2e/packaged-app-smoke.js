@@ -57,7 +57,7 @@ function getCliShimPath(appPath) {
   }
 
   if (process.platform === "win32") {
-    return path.join(appPath, "resources", "bin", "paseo.cmd");
+    return path.join(appPath, "resources", "bin", "stroll.cmd");
   }
 
   return path.join(appPath, "resources", "bin", "paseo");

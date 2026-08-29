@@ -121,10 +121,18 @@ describe("AgentManager rewind", () => {
     expect(session.recordedRewinds).toEqual([{ mode: "files", messageId: "message-1" }]);
   });
 
-  test("does not rewind when the in-flight turn rejects cancellation", async () => {
+  test("force-recovers and rewinds when the in-flight turn rejects cancellation", async () => {
+    // Stop escalation (#3937) means a provider that refuses to interrupt no longer
+    // strands the agent: the run is force-cancelled and the rewind goes through.
     class RejectingInterruptSession extends FakeRewindSession {
+      forceInterruptCalled = false;
+
       override async interrupt(): Promise<void> {
         throw new Error("provider still owns the active turn");
+      }
+
+      async forceInterrupt(): Promise<void> {
+        this.forceInterruptCalled = true;
       }
     }
 
@@ -140,14 +148,11 @@ describe("AgentManager rewind", () => {
     const run = manager.streamAgent(agent.id, "keep working");
     await run.next();
 
-    await expect(manager.rewind(agent.id, "message-1", "files")).rejects.toThrow(
-      `Cannot rewind agent ${agent.id} because its active run cancellation was not acknowledged`,
-    );
-    expect(session.recordedRewinds).toEqual([]);
-    expect(manager.getAgent(agent.id)).toMatchObject({
-      lifecycle: "running",
-      activeForegroundTurnId: "turn-1",
-    });
+    await manager.rewind(agent.id, "message-1", "files");
+
+    expect(session.forceInterruptCalled).toBe(true);
+    expect(session.recordedRewinds).toEqual([{ mode: "files", messageId: "message-1" }]);
+    expect(manager.getAgent(agent.id)).toMatchObject({ activeForegroundTurnId: null });
   });
 
   test("blocks new prompts until the rehydrate epoch broadcasts", async () => {

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createElementSelectorController,
   type BrowserElementSelection,
+  type ElementSelectorController,
   type ElementSelectorOutcome,
 } from "./element-selector.electron";
 
@@ -9,13 +10,15 @@ const { getDesktopHost } = vi.hoisted(() => ({ getDesktopHost: vi.fn() }));
 
 vi.mock("@/desktop/host", () => ({ getDesktopHost }));
 
-type Webview = HTMLElement & { isLoading?: () => boolean };
+type Webview = Parameters<ElementSelectorController["start"]>[0]["webview"];
 
+// The suite runs in the node environment, so the pane is stubbed rather than
+// mounted: the controller only reads `isConnected` and `isLoading`.
 function webview(options: { connected?: boolean; loading?: boolean } = {}): Webview {
-  const element = document.createElement("div") as Webview;
-  element.isLoading = () => options.loading === true;
-  if (options.connected !== false) document.body.appendChild(element);
-  return element;
+  return {
+    isConnected: options.connected !== false,
+    isLoading: () => options.loading === true,
+  } as unknown as Webview;
 }
 
 const selection: BrowserElementSelection = {
@@ -32,7 +35,6 @@ const selection: BrowserElementSelection = {
 
 describe("createElementSelectorController", () => {
   beforeEach(() => {
-    document.body.innerHTML = "";
     getDesktopHost.mockReset();
   });
 

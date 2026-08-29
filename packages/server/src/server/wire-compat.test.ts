@@ -12,7 +12,10 @@ import {
 } from "@getpaseo/protocol/messages";
 import { Session, type SessionOptions } from "./session.js";
 import { DirectorySyncService } from "./directory-sync/index.js";
-import { createProviderSnapshotManagerStub } from "./test-utils/session-stubs.js";
+import {
+  createAgentQueueStoreStub,
+  createProviderSnapshotManagerStub,
+} from "./test-utils/session-stubs.js";
 import type { AgentTimelineRow } from "./agent/agent-manager.js";
 import { InMemoryAgentTimelineStore } from "./agent/agent-timeline-store.js";
 import type { AgentTimelineFetchOptions } from "./agent/agent-timeline-store-types.js";
@@ -120,6 +123,8 @@ class InMemoryAgentManager {
 }
 
 class EmptyAgentStorage {
+  readonly queueStore = createAgentQueueStoreStub();
+
   async list() {
     return [];
   }

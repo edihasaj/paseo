@@ -39,16 +39,31 @@ export function asAgentManager(stub: {
   return createStub<SessionOptions["agentManager"]>(stub);
 }
 
+/**
+ * Full no-op stand-in for the daemon-owned prompt queue. Sessions wire the queue
+ * store unconditionally, so every agent-storage fake needs the whole surface.
+ */
+export function createAgentQueueStoreStub(): Record<string, unknown> {
+  return {
+    list: async () => [],
+    enqueue: async () => null,
+    update: async () => null,
+    reorder: async () => [],
+    delete: async () => null,
+    take: async () => null,
+    restoreFront: async () => {},
+    clear: async () => {},
+    subscribe: () => () => {},
+  };
+}
+
 export function asAgentStorage(stub: {
   [K in keyof SessionOptions["agentStorage"]]?: unknown;
 }): SessionOptions["agentStorage"] {
   return createStub<SessionOptions["agentStorage"]>({
     listByProviderSession: async () => [],
     listByWorkspace: async () => [],
-    queueStore: {
-      subscribe: () => () => {},
-      clear: async () => {},
-    },
+    queueStore: createAgentQueueStoreStub(),
     ...stub,
   });
 }
