@@ -75,9 +75,9 @@ export const AgentTracks = memo(function AgentTracks({
     [subagentRows],
   );
   const handleStopSubagent = useCallback(
-    (agentId: string) => {
+    (subagentId: string) => {
       if (!client) return;
-      void client.cancelAgent(agentId).catch(() => undefined);
+      void client.cancelAgent(subagentId).catch(() => undefined);
     },
     [client],
   );
@@ -98,7 +98,7 @@ export const AgentTracks = memo(function AgentTracks({
       destructive: true,
     });
     if (!confirmed) return;
-    await Promise.all(activeManagedSubagentIds.map((agentId) => client.cancelAgent(agentId)));
+    await Promise.all(activeManagedSubagentIds.map((subagentId) => client.cancelAgent(subagentId)));
   }, [activeManagedSubagentIds, client, subagentRows, t]);
   const handleOpenSubagent = useCallback(
     (subagentId: string) => {

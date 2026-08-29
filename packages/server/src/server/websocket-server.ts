@@ -538,6 +538,27 @@ function requireWebSocketServices(params: {
 /**
  * WebSocket server that only accepts sockets + parses/forwards messages to the session layer.
  */
+/**
+ * Coalesces the optional collaborators the daemon may not have wired yet. Kept out of the
+ * constructor so its branch count stays under the complexity budget while the fields stay
+ * `readonly` and constructor-assigned.
+ */
+function resolveOptionalWebSocketServices(params: {
+  workspaceLabelService: WorkspaceLabelService | undefined;
+  workspaceServiceRuntime: WorkspaceServiceRuntime | undefined;
+  providerAccounts: ProviderAccountService | undefined;
+}): {
+  workspaceLabelService: WorkspaceLabelService | null;
+  workspaceServiceRuntime: WorkspaceServiceRuntime | null;
+  providerAccounts: ProviderAccountService | null;
+} {
+  return {
+    workspaceLabelService: params.workspaceLabelService ?? null,
+    workspaceServiceRuntime: params.workspaceServiceRuntime ?? null,
+    providerAccounts: params.providerAccounts ?? null,
+  };
+}
+
 export class VoiceAssistantWebSocketServer {
   private readonly logger: pino.Logger;
   private readonly wss: WebSocketServer;
@@ -678,9 +699,14 @@ export class VoiceAssistantWebSocketServer {
     this.agentStorage = agentStorage;
     this.projectRegistry = projectRegistry ?? createNoopProjectRegistry();
     this.workspaceRegistry = workspaceRegistry ?? createNoopWorkspaceRegistry();
-    this.workspaceLabelService = workspaceLabelService ?? null;
-    this.workspaceServiceRuntime = workspaceServiceRuntime ?? null;
-    this.providerAccounts = providerAccounts ?? null;
+    const optionalServices = resolveOptionalWebSocketServices({
+      workspaceLabelService,
+      workspaceServiceRuntime,
+      providerAccounts,
+    });
+    this.workspaceLabelService = optionalServices.workspaceLabelService;
+    this.workspaceServiceRuntime = optionalServices.workspaceServiceRuntime;
+    this.providerAccounts = optionalServices.providerAccounts;
     const requiredServices = requireWebSocketServices({
       scheduleService,
       checkoutDiffManager,

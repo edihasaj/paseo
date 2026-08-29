@@ -2326,13 +2326,7 @@ function ComposerContentImpl({
         removeLabel: t("composer.attachments.removeQueuedMessage"),
         sendNowLabel: t("composer.attachments.sendQueuedMessageNow"),
       }),
-    [
-      handleEditQueuedMessage,
-      handleRemoveQueuedMessage,
-      handleSendQueuedNow,
-      queuedMessages,
-      t,
-    ],
+    [handleEditQueuedMessage, handleRemoveQueuedMessage, handleSendQueuedNow, queuedMessages, t],
   );
   const contextTray = useMemo(
     () =>
