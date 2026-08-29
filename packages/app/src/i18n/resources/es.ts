@@ -1792,6 +1792,10 @@ export const es: TranslationResources = {
     archiveTooltip: "Subagente de archivo",
     archiveFinishedAction: "Archivar subagentes finalizados",
     archiveFinishedRetry: "Reintentar ({{failed}}/{{total}})",
+    stopAction: "Stop {{label}}",
+    stopAllAction: "Stop all active",
+    stopAllConfirmTitle: "Stop all active work?",
+    stopAllConfirmMessage: "This will interrupt {{count}} active subagent(s): {{names}}.",
   },
   goals: {
     status: {

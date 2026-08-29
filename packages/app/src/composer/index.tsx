@@ -122,7 +122,10 @@ import type {
   WorkspaceComposerAttachment,
 } from "@/attachments/types";
 import type { PickedFile } from "@/attachments/picked-file";
-import { resolveComposerAttachmentSubmitFormat } from "@/composer/attachments/submit";
+import {
+  resolveComposerAttachmentSubmitFormat,
+  splitComposerAttachmentsForSubmit,
+} from "@/composer/attachments/submit";
 import { composerWorkspaceAttachment } from "@/composer/attachments/workspace";
 import { useWorkspaceAttachmentsForScopes } from "@/attachments/workspace-attachments-store";
 import { droppedItemsToPickedFiles } from "@/composer/attachments/drop";
@@ -1291,6 +1294,9 @@ function ComposerContentImpl({
   const supportsForgeSearch = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.forgeSearch === true,
   );
+  const supportsAgentQueue = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.agentQueue === true,
+  );
   const forgeAutoAttach = useComposerForgeAutoAttach({
     text: userInput,
     remoteUrl: resolveCheckoutRemoteUrl(checkoutStatusQuery.status),
@@ -1558,7 +1564,30 @@ function ComposerContentImpl({
   );
 
   const queueMessage = useCallback(
-    (queuedMessage: string, queuedAttachments: ComposerAttachment[]) => {
+    async (queuedMessage: string, queuedAttachments: ComposerAttachment[]) => {
+      const wireAttachments = splitComposerAttachmentsForSubmit(queuedAttachments, {
+        format: resolveComposerAttachmentSubmitFormat({
+          supportsForgeAttachments: supportsForgeSearch,
+        }),
+      });
+      if (client && supportsAgentQueue && wireAttachments.images.length === 0) {
+        try {
+          const response = await client.createAgentQueuePrompt({
+            agentId,
+            text: queuedMessage,
+            attachments: wireAttachments.attachments,
+          });
+          if (response.error) throw new Error(response.error);
+          replaceUserInput("");
+          setSelectedAttachments([]);
+          resetSuppression();
+          clearSentAttachments(queuedAttachments);
+          return;
+        } catch (error) {
+          setSendError(error instanceof Error ? error.message : t("composer.errors.failedToSend"));
+          return;
+        }
+      }
       const result = queueComposerMessage({
         agentId,
         text: queuedMessage,
@@ -1574,11 +1603,16 @@ function ComposerContentImpl({
     },
     [
       agentId,
+      client,
       clearSentAttachments,
       queueWriter,
       resetSuppression,
       setSelectedAttachments,
       replaceUserInput,
+      setSendError,
+      supportsAgentQueue,
+      supportsForgeSearch,
+      t,
     ],
   );
 
@@ -1933,7 +1967,7 @@ function ComposerContentImpl({
       if (clientSlashCommand && runClientSlashCommand(clientSlashCommand)) {
         return;
       }
-      queueMessage(payload.text, outgoingAttachments);
+      void queueMessage(payload.text, outgoingAttachments);
     },
     [attachments, buildOutgoingAttachments, queueMessage, runClientSlashCommand],
   );

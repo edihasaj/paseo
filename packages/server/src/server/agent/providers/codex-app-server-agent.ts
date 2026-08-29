@@ -5663,6 +5663,14 @@ export class CodexAppServerAgentSession implements AgentSession {
         description: detail.description ?? null,
         status: providerStatus,
         toolCallId: state.callId,
+        ...(state.parentCallId
+          ? {
+              parentSubagentId:
+                Array.from(
+                  this.subAgentCallsByCallId.get(state.parentCallId)?.childThreadIds ?? [],
+                ).sort()[0] ?? null,
+            }
+          : {}),
       },
     });
   }

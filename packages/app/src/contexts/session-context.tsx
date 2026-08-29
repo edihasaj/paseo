@@ -247,6 +247,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
   const setAgents = useSessionStore((state) => state.setAgents);
   const flushAgentLastActivity = useSessionStore((state) => state.flushAgentLastActivity);
   const setPendingPermissions = useSessionStore((state) => state.setPendingPermissions);
+  const setAgentQueuePrompts = useSessionStore((state) => state.setAgentQueuePrompts);
   const updateSessionServerInfo = useSessionStore((state) => state.updateSessionServerInfo);
   const setViewedTimelineSync = useSessionStore((state) => state.setViewedTimelineSync);
   const upsertWorkspaceSetupProgress = useWorkspaceSetupStore((state) => state.upsertProgress);
@@ -596,6 +597,11 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       useProviderSubagentStore.getState().applyUpdate(serverId, message.payload);
     });
 
+    const unsubAgentQueueUpdate = client.on("agent.queue.update", (message) => {
+      if (message.type !== "agent.queue.update") return;
+      setAgentQueuePrompts(serverId, message.payload.agentId, message.payload.prompts);
+    });
+
     const unsubCheckoutStatusUpdate = client.on("checkout_status_update", (message) => {
       if (message.type !== "checkout_status_update") return;
       applyCheckoutStatusUpdateFromEvent({ queryClient, serverId, message });
@@ -785,6 +791,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
       unsubAgentStream();
       unsubAgentTimeline();
       unsubProviderSubagentUpdate();
+      unsubAgentQueueUpdate();
       unsubAgentAttention();
       unsubCheckoutStatusUpdate();
       unsubWorkspaceSetupProgress();
@@ -810,6 +817,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
     setInitializingAgents,
     setAgents,
     setPendingPermissions,
+    setAgentQueuePrompts,
     notifyAgentAttention,
     applyWorkspaceSetupProgress,
     applyTimelineResponse,

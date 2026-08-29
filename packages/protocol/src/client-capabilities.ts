@@ -27,6 +27,9 @@ export const CLIENT_CAPS = {
   // COMPAT(timelineReplacementInvalidation): added in v0.5.0, remove legacy
   // reconstructed timeline replay after 2027-02-21 once the client floor supports invalidation.
   timelineReplacementInvalidation: "timeline_replacement_invalidation",
+  // COMPAT(agentQueue): added in v0.5.x. Capable clients receive daemon-owned
+  // queue snapshots instead of renderer-local queued prompts.
+  agentQueue: "agent_queue",
   browserHost: "browser_host",
 } as const;
 

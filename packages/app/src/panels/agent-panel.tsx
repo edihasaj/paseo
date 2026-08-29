@@ -100,7 +100,11 @@ import type { Theme } from "@/styles/theme";
 import type { PendingPermission } from "@/types/shared";
 import { generateMessageId, type StreamItem, type TodoEntry } from "@/types/stream";
 import type { ViewedTimelineStatus, ViewedTimelineUiBridge } from "@/timeline/viewed-timeline-sync";
-import { useArchiveFinishedSubagents, useSubagentsForParent } from "@/subagents";
+import {
+  useArchiveFinishedSubagents,
+  useSubagentTreeForParent,
+  useSubagentsForParent,
+} from "@/subagents";
 import { GoalTrack } from "@/goals/track";
 import type { GoalAction } from "@/goals/presentation";
 import { getInitDeferred, getInitKey } from "@/utils/agent-initialization";
@@ -1272,6 +1276,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
 }) {
   const { t } = useTranslation();
   const subagentRows = useSubagentsForParent({ serverId, parentAgentId: agentId });
+  const subagentTree = useSubagentTreeForParent({ serverId, parentAgentId: agentId });
   const tasks = useSessionStore((state): TodoEntry[] | undefined =>
     state.sessions[serverId]?.agentTasks.get(agentId),
   );
@@ -1376,6 +1381,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
           agentId={agentId}
           cwd={cwd}
           subagentRows={subagentRows}
+          subagentTree={subagentTree}
           tasks={tasks}
           archiveFinishedStatus={archiveFinishedSubagents.status}
           onArchiveFinished={archiveFinishedSubagents.archiveFinished}
