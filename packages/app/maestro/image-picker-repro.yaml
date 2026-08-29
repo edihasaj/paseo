@@ -1,4 +1,4 @@
-appId: sh.paseo
+appId: com.edihasaj.stroll
 ---
 - runFlow: flows/land-in-chat.yaml
 

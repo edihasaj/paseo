@@ -1,4 +1,4 @@
-appId: sh.paseo
+appId: com.edihasaj.stroll
 ---
 - runFlow:
     when:
