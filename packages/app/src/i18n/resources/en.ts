@@ -128,6 +128,8 @@ export const en = {
       dropImagesHere: "Drop images here",
       dropFilesHere: "Drop files here",
       editQueuedMessage: "Edit queued message",
+      steerQueuedMessage: "Steer",
+      removeQueuedMessage: "Remove queued message",
       sendQueuedMessageNow: "Send queued message now",
       openImage: "Open image attachment",
       removeImage: "Remove image attachment",
@@ -1754,6 +1756,17 @@ export const en = {
     archiveTooltip: "Archive subagent",
     archiveFinishedAction: "Archive finished subagents",
     archiveFinishedRetry: "Retry ({{failed}}/{{total}})",
+  },
+  goals: {
+    status: {
+      active: "Pursuing goal",
+      paused: "Paused",
+      blocked: "Blocked",
+      usageLimited: "Usage limited",
+      budgetLimited: "Budget limited",
+      complete: "Complete",
+    },
+    actions: { pause: "Pause", resume: "Resume", clear: "Clear" },
   },
   panels: {
     draft: {

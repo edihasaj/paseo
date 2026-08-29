@@ -24,9 +24,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useShallow } from "zustand/shallow";
 import {
-  ArrowUp,
   Square,
-  Pencil,
   AudioLines,
   CircleDot,
   FileText,
@@ -34,6 +32,10 @@ import {
   Image as ImageIcon,
   ClipboardPaste,
   Paperclip,
+  ListEnd,
+  Pencil,
+  CornerDownRight,
+  Trash2,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import Animated from "react-native-reanimated";
@@ -69,6 +71,7 @@ import {
   openComposerAttachment,
   pickAndPersistImages,
   queueComposerMessage,
+  removeQueuedComposerMessage,
   removeComposerAttachmentAtIndex,
   sendQueuedComposerMessageNow,
   toggleForgeAttachmentFromPicker,
@@ -369,13 +372,24 @@ interface RenderQueueTrackArgs {
   queuedMessages: readonly QueuedMessage[];
   handleEditQueuedMessage: (id: string) => void;
   handleSendQueuedNow: (id: string) => Promise<void>;
+  handleRemoveQueuedMessage: (id: string) => void;
   editLabel: string;
+  steerLabel: string;
+  removeLabel: string;
   sendNowLabel: string;
 }
 
 function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
-  const { queuedMessages, handleEditQueuedMessage, handleSendQueuedNow, editLabel, sendNowLabel } =
-    args;
+  const {
+    queuedMessages,
+    handleEditQueuedMessage,
+    handleSendQueuedNow,
+    handleRemoveQueuedMessage,
+    editLabel,
+    steerLabel,
+    removeLabel,
+    sendNowLabel,
+  } = args;
   if (queuedMessages.length === 0) return null;
   return (
     // Bounded so a long queue cannot push the composer off screen. The list stays
@@ -388,13 +402,17 @@ function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
         contentContainerStyle={styles.queueTrackContent}
         keyboardShouldPersistTaps="always"
       >
-        {queuedMessages.map((item) => (
+        {queuedMessages.map((item, index) => (
           <QueuedMessageRow
             key={item.id}
             item={item}
+            isLast={index === queuedMessages.length - 1}
             onEdit={handleEditQueuedMessage}
             onSendNow={handleSendQueuedNow}
+            onRemove={handleRemoveQueuedMessage}
             editLabel={editLabel}
+            steerLabel={steerLabel}
+            removeLabel={removeLabel}
             sendNowLabel={sendNowLabel}
           />
         ))}
@@ -665,17 +683,25 @@ function resolveMessageInputPassthroughAction(
 
 interface QueuedMessageRowProps {
   item: QueuedMessage;
+  isLast: boolean;
   onEdit: (id: string) => void;
   onSendNow: (id: string) => void;
+  onRemove: (id: string) => void;
   editLabel: string;
+  steerLabel: string;
+  removeLabel: string;
   sendNowLabel: string;
 }
 
 function QueuedMessageRow({
   item,
+  isLast,
   onEdit,
   onSendNow,
+  onRemove,
   editLabel,
+  steerLabel,
+  removeLabel,
   sendNowLabel,
 }: QueuedMessageRowProps) {
   const handleEdit = useCallback(() => {
@@ -684,27 +710,42 @@ function QueuedMessageRow({
   const handleSendNow = useCallback(() => {
     onSendNow(item.id);
   }, [onSendNow, item.id]);
+  const handleRemove = useCallback(() => {
+    onRemove(item.id);
+  }, [onRemove, item.id]);
   return (
-    <View style={styles.queueItem}>
-      <Text style={styles.queueText} numberOfLines={2} ellipsizeMode="tail">
-        {item.text}
-      </Text>
+    <View style={[styles.queueItem, !isLast && styles.queueItemDivider]}>
+      <View style={styles.queueSummary}>
+        <ThemedListEnd size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
+        <Text style={styles.queueText} numberOfLines={1} ellipsizeMode="tail">
+          {item.text}
+        </Text>
+      </View>
       <View style={styles.queueActions}>
+        <Pressable
+          onPress={handleSendNow}
+          style={[styles.queueActionButton, styles.queueSteerButton]}
+          accessibilityLabel={sendNowLabel}
+          accessibilityRole="button"
+        >
+          <ThemedCornerDownRight size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
+          <Text style={styles.queueSteerText}>{steerLabel}</Text>
+        </Pressable>
         <Pressable
           onPress={handleEdit}
           style={styles.queueActionButton}
           accessibilityLabel={editLabel}
           accessibilityRole="button"
         >
-          <ThemedPencil size={ICON_SIZE.sm} uniProps={iconForegroundMapping} />
+          <ThemedPencil size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
         </Pressable>
         <Pressable
-          onPress={handleSendNow}
-          style={[styles.queueActionButton, styles.queueSendButton]}
-          accessibilityLabel={sendNowLabel}
+          onPress={handleRemove}
+          style={styles.queueActionButton}
+          accessibilityLabel={removeLabel}
           accessibilityRole="button"
         >
-          <ThemedArrowUp size={ICON_SIZE.sm} uniProps={iconAccentForegroundMapping} />
+          <ThemedTrash2 size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
         </Pressable>
       </View>
     </View>
@@ -967,6 +1008,8 @@ interface ComposerProps {
   onAttentionPromptSend?: () => void;
   /** Controlled agent controls rendered in input area (draft flows). */
   agentControls?: DraftAgentControlsProps;
+  /** Optional persistent row shown after queued messages in the inset composer tray. */
+  contextTrayFooter?: React.ReactNode;
   /** Extra styles merged onto the message input wrapper (e.g. elevated background). */
   inputWrapperStyle?: import("react-native").ViewStyle;
   /** When true, a parent wrapper owns the keyboard shift, so the composer skips its own. */
@@ -1183,6 +1226,7 @@ function ComposerContentImpl({
   onAttentionInputFocus,
   onAttentionPromptSend,
   agentControls,
+  contextTrayFooter,
   inputWrapperStyle,
   externalKeyboardShift,
   isCompactLayout: isCompactLayoutOverride,
@@ -1862,6 +1906,23 @@ function ComposerContentImpl({
     [agentId, queueWriter, submitMessage, t],
   );
 
+  const handleRemoveQueuedMessage = useCallback(
+    (id: string) => {
+      const removed = removeQueuedComposerMessage({
+        agentId,
+        messageId: id,
+        queue: queueWriter,
+      });
+      if (!removed) return;
+      void deleteAttachments(
+        removed.attachments.flatMap((attachment) =>
+          attachment.kind === "image" ? [attachment.metadata] : [],
+        ),
+      );
+    },
+    [agentId, queueWriter],
+  );
+
   const handleQueue = useCallback(
     (payload: MessagePayload) => {
       const outgoingAttachments = buildOutgoingAttachments(attachments);
@@ -2225,10 +2286,31 @@ function ComposerContentImpl({
         queuedMessages,
         handleEditQueuedMessage,
         handleSendQueuedNow,
+        handleRemoveQueuedMessage,
         editLabel: t("composer.attachments.editQueuedMessage"),
+        steerLabel: t("composer.attachments.steerQueuedMessage"),
+        removeLabel: t("composer.attachments.removeQueuedMessage"),
         sendNowLabel: t("composer.attachments.sendQueuedMessageNow"),
       }),
-    [handleEditQueuedMessage, handleSendQueuedNow, queuedMessages, t],
+    [
+      handleEditQueuedMessage,
+      handleRemoveQueuedMessage,
+      handleSendQueuedNow,
+      queuedMessages,
+      t,
+    ],
+  );
+  const contextTray = useMemo(
+    () =>
+      queueList || contextTrayFooter ? (
+        <View style={styles.contextTray} testID="composer-context-tray">
+          {queueList}
+          {contextTrayFooter ? (
+            <View style={queueList && styles.contextTrayFooterSeparated}>{contextTrayFooter}</View>
+          ) : null}
+        </View>
+      ) : null,
+    [contextTrayFooter, queueList],
   );
 
   const messageInputContainerRef = useRef<View>(null);
@@ -2283,7 +2365,6 @@ function ComposerContentImpl({
         {/* Input area */}
         <View style={inputAreaContainerStyle}>
           <View style={styles.inputAreaContent}>
-            {queueList}
             {sendErrorNode}
 
             <View ref={messageInputContainerRef} style={styles.messageInputContainer}>
@@ -2298,6 +2379,8 @@ function ComposerContentImpl({
                 loadingText={autocomplete.loadingText}
                 emptyText={autocomplete.emptyText}
               />
+
+              {contextTray}
 
               {/* MessageInput handles everything: text, dictation, attachments, all buttons */}
               <RenderProfile id="MessageInput">
@@ -2410,7 +2493,22 @@ const styles = StyleSheet.create((theme: Theme) => ({
   messageInputContainer: {
     position: "relative",
     width: "100%",
-    gap: theme.spacing[3],
+  },
+  contextTray: {
+    marginHorizontal: theme.spacing[3],
+    marginBottom: -theme.spacing[3],
+    paddingHorizontal: theme.spacing[1],
+    paddingTop: theme.spacing[1],
+    paddingBottom: theme.spacing[4],
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface2,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.borderAccent,
+    borderRadius: theme.borderRadius["2xl"],
+  },
+  contextTrayFooterSeparated: {
+    borderTopWidth: theme.borderWidth[1],
+    borderTopColor: theme.colors.border,
   },
   cancelButton: {
     width: 28,
@@ -2480,40 +2578,51 @@ const styles = StyleSheet.create((theme: Theme) => ({
   },
   queueTrackContent: {
     flexDirection: "column",
-    gap: theme.spacing[2],
   },
   queueItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
-    backgroundColor: theme.colors.surface1,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
+    minHeight: 32,
+    paddingHorizontal: theme.spacing[2],
+    gap: theme.spacing[2],
+  },
+  queueItemDivider: {
+    borderBottomWidth: theme.borderWidth[1],
+    borderBottomColor: theme.colors.border,
+  },
+  queueSummary: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
     gap: theme.spacing[2],
   },
   queueText: {
     flex: 1,
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.sm,
   },
   queueActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
   },
   queueActionButton: {
     width: QUEUE_ACTION_BUTTON_SIZE,
     height: QUEUE_ACTION_BUTTON_SIZE,
     borderRadius: theme.borderRadius.full,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: theme.colors.surface2,
   },
-  queueSendButton: {
-    backgroundColor: theme.colors.accent,
+  queueSteerButton: {
+    gap: theme.spacing[1],
+    paddingHorizontal: theme.spacing[2],
+  },
+  queueSteerText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   sendErrorText: {
     color: theme.colors.palette.red[500],
@@ -2521,8 +2630,6 @@ const styles = StyleSheet.create((theme: Theme) => ({
   },
 })) as unknown as Record<string, object>;
 
-const ThemedPencil = withUnistyles(Pencil);
-const ThemedArrowUp = withUnistyles(ArrowUp);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedCircleDot = withUnistyles(CircleDot);
 const ThemedAudioLines = withUnistyles(AudioLines);
@@ -2530,9 +2637,12 @@ const ThemedPaperclip = withUnistyles(Paperclip);
 const ThemedImageIcon = withUnistyles(ImageIcon);
 const ThemedClipboardPaste = withUnistyles(ClipboardPaste);
 const ThemedFileText = withUnistyles(FileText);
+const ThemedListEnd = withUnistyles(ListEnd);
+const ThemedPencil = withUnistyles(Pencil);
+const ThemedCornerDownRight = withUnistyles(CornerDownRight);
+const ThemedTrash2 = withUnistyles(Trash2);
 const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-const iconAccentForegroundMapping = (theme: Theme) => ({ color: theme.colors.accentForeground });
 
 function renderForgeAttachmentIcon(icon: string): ReactElement {
   return (
