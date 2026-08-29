@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import path from "node:path";
 import { z } from "zod";
 import { HubCommandError } from "./error.js";
 import { normalizeHubOrigin } from "./origin.js";
+import { resolveStrollHome } from "../../utils/home.js";
 
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
@@ -137,9 +137,7 @@ export class PrivateHubCredentialStore implements HubCredentialStore {
 }
 
 function resolvePaseoHome(env: Readonly<Record<string, string | undefined>>): string {
-  const configured = env.PASEO_HOME ?? "~/.paseo";
-  const expanded = configured === "~" ? homedir() : configured.replace(/^~\//u, `${homedir()}/`);
-  return path.resolve(expanded);
+  return resolveStrollHome(env);
 }
 
 function chmodPrivate(target: string, mode: number): void {
