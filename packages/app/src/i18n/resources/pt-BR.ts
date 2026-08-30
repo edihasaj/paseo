@@ -1137,6 +1137,7 @@ export const ptBR: TranslationResources = {
     },
     sections: {
       sessions: "Histórico",
+      chats: "Conversas",
       schedules: "Agendamentos",
     },
     worktreeSetup: {

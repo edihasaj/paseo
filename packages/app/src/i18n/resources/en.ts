@@ -1121,6 +1121,7 @@ export const en = {
     },
     sections: {
       sessions: "History",
+      chats: "Chats",
       schedules: "Schedules",
     },
     worktreeSetup: {

@@ -38,6 +38,8 @@ import {
   CircleCheck,
   CircleDot,
   CircleX,
+  MessageSquare,
+  Tag,
 } from "lucide-react-native";
 import { useToast } from "@/contexts/toast-context";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
@@ -105,6 +107,8 @@ const ThemedCircleAlert = withUnistyles(CircleAlert);
 const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedCircleDot = withUnistyles(CircleDot);
 const ThemedCircleX = withUnistyles(CircleX);
+const ThemedMessageSquare = withUnistyles(MessageSquare);
+const ThemedTag = withUnistyles(Tag);
 const EMPTY_SHORTCUT_INDEX = new Map<string, number>();
 
 function statusWorkspaceKeyExtractor(workspace: SidebarWorkspaceEntry): string {
@@ -465,12 +469,23 @@ function StatusGroupLeadingVisual({
   showChevron: boolean;
 }) {
   if (!showChevron) {
-    return <StatusGroupIcon bucket={leading.bucket} />;
+    return <GroupLeadingIcon leading={leading} />;
   }
   if (collapsed) {
     return <ThemedChevronRight size={14} uniProps={foregroundMutedColorMapping} />;
   }
   return <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />;
+}
+
+function GroupLeadingIcon({ leading }: { leading: SidebarWorkspaceGroup["leading"] }) {
+  switch (leading.kind) {
+    case "status":
+      return <StatusGroupIcon bucket={leading.bucket} />;
+    case "label":
+      return <ThemedTag size={14} uniProps={foregroundMutedColorMapping} />;
+    case "chats":
+      return <ThemedMessageSquare size={14} uniProps={foregroundMutedColorMapping} />;
+  }
 }
 
 function StatusGroupIcon({ bucket }: { bucket: StatusBucket }) {

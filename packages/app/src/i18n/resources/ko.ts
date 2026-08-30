@@ -1119,6 +1119,7 @@ export const ko: TranslationResources = {
     },
     sections: {
       sessions: "기록",
+      chats: "채팅",
       schedules: "일정",
     },
     worktreeSetup: {

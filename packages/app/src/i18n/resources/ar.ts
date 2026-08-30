@@ -1112,6 +1112,7 @@ export const ar: TranslationResources = {
     },
     sections: {
       sessions: "السجل",
+      chats: "المحادثات",
       schedules: "الجداول",
     },
     worktreeSetup: {

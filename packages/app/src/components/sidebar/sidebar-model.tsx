@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useSidebarWorkspacesList,
   type SidebarProjectEntry,
@@ -56,10 +57,19 @@ export function SidebarModelProvider({
 }) {
   const list = useSidebarWorkspacesList({ enabled: active });
   const groupMode = useSidebarViewStore((state) => state.groupMode);
+  // Label mode renders one group per defined label, so the catalog drives the order rather than
+  // whichever labels the visible workspaces happen to carry: an empty label still needs a header
+  // to drop onto.
+  const { hosts: labelHosts, labels: labelDefinitions } = useWorkspaceLabelProjection();
+  const labelOrder = useMemo(
+    () => labelDefinitions.map((definition) => definition.name),
+    [labelDefinitions],
+  );
+  const { t } = useTranslation();
+  const chatsLabel = t("sidebar.sections.chats");
   const labelFilter = useSidebarViewStore((state) => state.labelFilter);
   const projectFilters = useSidebarViewStore((state) => state.projectFilters);
   const reconcileLabelFilter = useSidebarViewStore((state) => state.reconcileLabelFilter);
-  const { hosts: labelHosts } = useWorkspaceLabelProjection();
   const collapsedProjectKeys = useSidebarCollapsedSectionsStore(
     (state) => state.collapsedProjectKeys,
   );
@@ -150,11 +160,15 @@ export function SidebarModelProvider({
       pinnedCollapsed,
       collapsedProjectKeys,
       collapsedWorkspaceGroupKeys,
+      labelOrder,
+      chatsLabel,
     }),
     [
+      chatsLabel,
       collapsedProjectKeys,
       collapsedWorkspaceGroupKeys,
       groupMode,
+      labelOrder,
       list.projectNamesByViewKey,
       filteredProjects,
       pinnedCollapsed,

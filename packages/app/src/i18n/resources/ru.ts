@@ -1128,6 +1128,7 @@ export const ru: TranslationResources = {
     },
     sections: {
       sessions: "История",
+      chats: "Чаты",
       schedules: "Расписания",
     },
     worktreeSetup: {

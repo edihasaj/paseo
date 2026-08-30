@@ -1104,6 +1104,7 @@ export const zhCN: TranslationResources = {
     },
     sections: {
       sessions: "历史",
+      chats: "对话",
       schedules: "计划",
     },
     worktreeSetup: {

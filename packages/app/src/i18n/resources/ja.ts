@@ -1124,6 +1124,7 @@ export const ja: TranslationResources = {
     },
     sections: {
       sessions: "履歴",
+      chats: "チャット",
       schedules: "スケジュール",
     },
     worktreeSetup: {
