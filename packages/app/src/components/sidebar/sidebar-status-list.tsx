@@ -19,6 +19,11 @@ import {
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import type { GestureType } from "react-native-gesture-handler";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
+import { workspaceLabelKey } from "@getpaseo/protocol/workspace-labels";
+import { useWorkspaceLabelProjection } from "@/workspace-labels";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
+import { useFolderDragSource, useFolderDropTarget } from "./use-folder-drag";
+import { planFolderDrop } from "./sidebar-folder-drop";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { type SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { StatusBucket } from "@/hooks/sidebar-status-view-model";
@@ -275,6 +280,74 @@ export function SidebarStatusWorkspaceList({
   );
 }
 
+export type FolderDropHandler = (
+  drag: { workspaceKey: string; sourceGroupKey: string },
+  targetGroupKey: string,
+) => void;
+
+/**
+ * Commits a folder drop as label assignments on the workspace's own host.
+ *
+ * The label order comes from the rendered groups rather than the catalog so the drop resolves
+ * against exactly what the person was looking at: a folder added on another host mid-drag is
+ * not a target they could have aimed at.
+ */
+function useFolderDropCommit(groups: readonly SidebarWorkspaceGroup[]): FolderDropHandler {
+  const toast = useToast();
+  // Assignment carries the whole definition, so a drop can only move a row into a folder the
+  // catalog still knows the colour of.
+  const { labels: labelDefinitions } = useWorkspaceLabelProjection();
+  const definitionsByKey = useMemo(() => {
+    const map = new Map<string, (typeof labelDefinitions)[number]>();
+    for (const definition of labelDefinitions)
+      map.set(workspaceLabelKey(definition.name), definition);
+    return map;
+  }, [labelDefinitions]);
+  const rowsByKey = useMemo(() => {
+    const map = new Map<string, SidebarWorkspaceEntry>();
+    for (const group of groups) {
+      for (const row of group.rows) map.set(row.workspaceKey, row);
+    }
+    return map;
+  }, [groups]);
+  const labelOrder = useMemo(
+    () => groups.flatMap((group) => (group.leading.kind === "label" ? [group.leading.name] : [])),
+    [groups],
+  );
+
+  return useCallback(
+    (drag, targetGroupKey) => {
+      const workspace = rowsByKey.get(drag.workspaceKey);
+      if (!workspace) return;
+      const mutations = planFolderDrop({
+        workspaceLabels: workspace.labels ?? [],
+        sourceGroupKey: drag.sourceGroupKey,
+        targetGroupKey,
+        labelOrder,
+      });
+      if (mutations.length === 0) return;
+      const client = getHostRuntimeStore().getClient(workspace.serverId);
+      if (!client) return;
+      void (async () => {
+        try {
+          for (const mutation of mutations) {
+            const definition = definitionsByKey.get(workspaceLabelKey(mutation.label));
+            if (!definition) continue;
+            await client.setWorkspaceLabel({
+              workspaceId: workspace.workspaceId,
+              label: { name: definition.name, color: definition.color },
+              assigned: mutation.assigned,
+            });
+          }
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Could not move the chat.");
+        }
+      })();
+    },
+    [definitionsByKey, labelOrder, rowsByKey, toast],
+  );
+}
+
 function StatusGroupList({
   groups,
   collapsedWorkspaceGroupKeys,
@@ -296,6 +369,7 @@ function StatusGroupList({
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
 }) {
+  const onFolderDrop = useFolderDropCommit(groups);
   return (
     <>
       {groups.map((group) => (
@@ -310,6 +384,7 @@ function StatusGroupList({
           hostBadgeByServerId={hostBadgeByServerId}
           supportsPinningByServerId={supportsPinningByServerId}
           onToggleWorkspacePin={onToggleWorkspacePin}
+          onFolderDrop={onFolderDrop}
         />
       ))}
     </>
@@ -326,6 +401,7 @@ function StatusGroupRows({
   hostBadgeByServerId,
   supportsPinningByServerId,
   onToggleWorkspacePin,
+  onFolderDrop,
 }: {
   group: SidebarWorkspaceGroup;
   collapsed: boolean;
@@ -336,6 +412,7 @@ function StatusGroupRows({
   hostBadgeByServerId: ReadonlyMap<string, HostBadgeModel>;
   supportsPinningByServerId: ReadonlyMap<string, boolean>;
   onToggleWorkspacePin: ToggleSidebarWorkspacePin;
+  onFolderDrop: FolderDropHandler;
 }) {
   const {
     visibleItems: visibleWorkspaces,
@@ -346,27 +423,32 @@ function StatusGroupRows({
 
   return (
     <View style={collapsed ? undefined : styles.statusGroupBlockExpanded}>
-      <StatusGroupHeader group={group} collapsed={collapsed} />
+      <StatusGroupHeader group={group} collapsed={collapsed} onFolderDrop={onFolderDrop} />
       {!collapsed ? (
         <View
           style={styles.statusWorkspaceListContainer}
           testID={`sidebar-status-group-rows-${group.key}`}
         >
           {visibleWorkspaces.map((workspace) => (
-            <StatusWorkspaceRow
+            <FolderDragSourceRow
               key={workspace.workspaceKey}
-              workspace={workspace}
-              {...buildStatusRowProjectPresentation({
-                workspace,
-                projectIconByProjectViewKey,
-                hostBadgeByServerId,
-              })}
-              shortcutNumber={shortcutIndex.get(workspace.workspaceKey) ?? null}
-              showShortcutBadge={showShortcutBadges}
-              canPin={supportsPinningByServerId.get(workspace.serverId) === true}
-              onToggleWorkspacePin={onToggleWorkspacePin}
-              onWorkspacePress={onWorkspacePress}
-            />
+              workspaceKey={workspace.workspaceKey}
+              groupKey={group.key}
+            >
+              <StatusWorkspaceRow
+                workspace={workspace}
+                {...buildStatusRowProjectPresentation({
+                  workspace,
+                  projectIconByProjectViewKey,
+                  hostBadgeByServerId,
+                })}
+                shortcutNumber={shortcutIndex.get(workspace.workspaceKey) ?? null}
+                showShortcutBadge={showShortcutBadges}
+                canPin={supportsPinningByServerId.get(workspace.serverId) === true}
+                onToggleWorkspacePin={onToggleWorkspacePin}
+                onWorkspacePress={onWorkspacePress}
+              />
+            </FolderDragSourceRow>
           ))}
           {canToggleWorkspaces ? (
             <SidebarGroupToggleRow
@@ -404,14 +486,36 @@ function buildStatusRowProjectPresentation({
   };
 }
 
+/**
+ * Arms a folder drag on the row it wraps.
+ *
+ * A wrapper rather than props on the row because the gesture is only about which group the
+ * pointer ends over: the row keeps owning its own press, menu and pin behaviour untouched.
+ */
+function FolderDragSourceRow({
+  workspaceKey,
+  groupKey,
+  children,
+}: {
+  workspaceKey: string;
+  groupKey: string;
+  children: ReactNode;
+}) {
+  const dragSource = useFolderDragSource({ workspaceKey, groupKey });
+  return <View onPointerDown={dragSource.onPointerDown}>{children}</View>;
+}
+
 function StatusGroupHeader({
   group,
   collapsed,
+  onFolderDrop,
 }: {
   group: SidebarWorkspaceGroup;
   collapsed: boolean;
+  onFolderDrop: FolderDropHandler;
 }) {
   const [isHovered, setIsHovered] = useState(false);
+  const dropTarget = useFolderDropTarget({ groupKey: group.key, onDrop: onFolderDrop });
   const toggleWorkspaceGroupCollapsed = useSidebarCollapsedSectionsStore(
     (state) => state.toggleWorkspaceGroupCollapsed,
   );
@@ -425,13 +529,23 @@ function StatusGroupHeader({
       styles.statusGroupRow,
       isHovered && styles.statusGroupRowHovered,
       pressed && styles.statusGroupRowPressed,
+      dropTarget.isActive && styles.statusGroupRowDropTarget,
     ],
-    [isHovered],
+    [dropTarget.isActive, isHovered],
   );
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
 
+  const handlePointerEnter = useCallback(() => {
+    handleHoverIn();
+    dropTarget.onPointerEnter();
+  }, [dropTarget, handleHoverIn]);
+  const handlePointerLeave = useCallback(() => {
+    handleHoverOut();
+    dropTarget.onPointerLeave();
+  }, [dropTarget, handleHoverOut]);
+
   return (
-    <View onPointerEnter={handleHoverIn} onPointerLeave={handleHoverOut}>
+    <View onPointerEnter={handlePointerEnter} onPointerLeave={handlePointerLeave}>
       <Pressable
         accessibilityRole={platformIsWeb ? undefined : "button"}
         accessibilityLabel={`${group.label} group`}
@@ -1087,6 +1201,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   statusGroupRowPressed: {
     backgroundColor: theme.colors.surface2,
+  },
+  statusGroupRowDropTarget: {
+    backgroundColor: theme.colors.surface2,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.borderAccent,
+    borderRadius: theme.borderRadius.md,
   },
   statusGroupRowLeft: {
     flexDirection: "row",
