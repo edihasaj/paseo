@@ -179,7 +179,9 @@ export function createMarkdownStyles(theme: Theme) {
       color: theme.colors.foreground,
       paddingHorizontal: theme.spacing[1],
       paddingVertical: 2,
-      borderRadius: theme.borderRadius.md,
+      // A tighter corner than the block radius: inline code sits inside a line of prose, and at
+      // 6 the rounding is doing more work than a span this small needs.
+      borderRadius: theme.borderRadius.base,
       borderWidth: 0,
       fontFamily: theme.fontFamily.mono,
       fontSize: theme.fontSize.code,
