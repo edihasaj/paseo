@@ -57,6 +57,7 @@ import type { SidebarProjectIconTarget } from "@/utils/sidebar-project-row-model
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useHosts } from "@/runtime/host-runtime";
+import { useEarliestOnlineHostServerId } from "@/app/_layout";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import { usePanelStore } from "@/stores/panel-store";
@@ -515,8 +516,11 @@ const SidebarNewChatHeaderRow = memo(function SidebarNewChatHeaderRow({
   onBeforeNavigate?: () => void;
   createFailedMessage: string;
 }) {
+  // A chat needs a host, not a workspace. Keying this off the active selection hid the row on a
+  // fresh install — the one state where starting a chat is the only thing you can do.
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
-  const serverId = activeWorkspaceSelection?.serverId ?? null;
+  const onlineHostServerId = useEarliestOnlineHostServerId();
+  const serverId = activeWorkspaceSelection?.serverId ?? onlineHostServerId;
   const supportsChats = useHostFeature(serverId, "chatWorkspaces");
   // Hooks cannot be conditional, and an id no host answers to resolves to a null client,
   // which the press handler already treats as "not ready".
