@@ -10,7 +10,15 @@ export interface SkillSelectionStore {
   isSet(): Promise<boolean>;
 }
 
-const DEFAULT_SKILL_SELECTION: SkillSelection = { mode: "all" };
+/**
+ * Stroll installs no bundled skills unless asked.
+ *
+ * Skill install targets resolve from `os.homedir()`, not STROLL_HOME, so `~/.claude/skills`,
+ * `~/.codex/skills` and `~/.agents/skills` are shared with any other install on the machine —
+ * upstream Paseo among them. Defaulting to "all" makes whichever daemon notices drift first
+ * rewrite directories the other one owns. Opting in is a choice; clobbering is not.
+ */
+const DEFAULT_SKILL_SELECTION: SkillSelection = { mode: "custom", skills: [] };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);

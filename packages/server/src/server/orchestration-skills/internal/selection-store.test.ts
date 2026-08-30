@@ -28,9 +28,11 @@ async function createStore() {
 }
 
 describe("daemon agent skill selection", () => {
-  it("defaults missing selection to all without persisting it", async () => {
+  // Skill targets are shared with any other install on the machine, so an unconfigured daemon
+  // installs nothing rather than claiming every managed directory.
+  it("defaults missing selection to an empty custom set without persisting it", async () => {
     const { root, store } = await createStore();
-    expect(await store.get()).toEqual({ mode: "all" });
+    expect(await store.get()).toEqual({ mode: "custom", skills: [] });
     expect(await store.isSet()).toBe(false);
     expect(loadPersistedConfig(root).agents?.skills).toBeUndefined();
   });
