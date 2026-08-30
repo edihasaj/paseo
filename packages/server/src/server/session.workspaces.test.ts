@@ -9600,7 +9600,6 @@ test("workspace.create.request reports an archived explicit project", async () =
   });
 });
 
-
 test("workspace.create.request provisions a chat under the daemon home", async () => {
   const emitted: SessionOutboundMessage[] = [];
   const workspaces = new Map<string, PersistedWorkspaceRecord>();
@@ -9655,4 +9654,38 @@ test("workspace.create.request reports a chat directory it could not create", as
     workspace: null,
     error: "EACCES: permission denied",
   });
+});
+
+test("workspace.create.request schedules a name for a chat opened with a prompt", async () => {
+  const emitted: SessionOutboundMessage[] = [];
+  const scheduled: Array<{ workspaceId: string; cwd: string }> = [];
+  const workspaces = new Map<string, PersistedWorkspaceRecord>();
+  const session = createSessionForWorkspaceTests({
+    onMessage: (message) => emitted.push(message),
+    paseoHome: "/tmp/stroll-home",
+  });
+  session.filesystem.createDirectory = async () => {};
+  session.workspaceAutoName.scheduleForDirectory = (input: {
+    workspaceId: string;
+    cwd: string;
+  }) => {
+    scheduled.push({ workspaceId: input.workspaceId, cwd: input.cwd });
+  };
+  session.workspaceRegistry.upsert = async (record: unknown) => {
+    const workspace = record as PersistedWorkspaceRecord;
+    workspaces.set(workspace.workspaceId, workspace);
+  };
+  session.workspaceRegistry.get = async (workspaceId: string) =>
+    workspaces.get(workspaceId) ?? null;
+
+  await session.handleMessage({
+    type: "workspace.create.request",
+    requestId: "req-chat-named",
+    source: { kind: "chat" },
+    firstAgentContext: { prompt: "summarise yesterday's incident" },
+  });
+
+  // A chat's directory is a uuid, so the prompt is the only thing it can be named from.
+  expect(scheduled).toHaveLength(1);
+  expect(scheduled[0]?.cwd.startsWith("/tmp/stroll-home/chats/")).toBe(true);
 });

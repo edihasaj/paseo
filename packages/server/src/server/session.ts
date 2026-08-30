@@ -6074,6 +6074,20 @@ export class Session {
       descriptor,
       request.firstAgentContext ? "running" : undefined,
     );
+    // Without this a chat is named after its scratch directory, which is a uuid. The prompt is
+    // the only thing a chat has to be named from, so schedule the same auto-naming a directory
+    // workspace gets rather than leaving the id on screen.
+    if (request.firstAgentContext) {
+      const firstAgentContext = request.firstAgentContext;
+      this.workspaceAutoName.scheduleForDirectory(
+        {
+          workspaceId: workspace.workspaceId,
+          cwd: workspace.cwd,
+          firstAgentContext,
+        },
+        { currentSelection: this.getFocusedAgentSelectionForCwd(workspace.cwd) },
+      );
+    }
   }
 
   private async handleWorkspaceCreateLocal(
