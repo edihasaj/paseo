@@ -1054,7 +1054,7 @@ export const en = {
         label: "Grouping",
         project: "Project",
         status: "Status",
-        labels: "Labels",
+        labels: "Folders",
       },
       titleSource: {
         label: "Title",
@@ -1103,6 +1103,8 @@ export const en = {
     actions: {
       addProject: "Add project",
       newWorkspace: "New workspace",
+      newChat: "New chat",
+      newChatFailed: "Could not start a chat.",
       hosts: "Hosts",
       home: "Home",
       settings: "Settings",

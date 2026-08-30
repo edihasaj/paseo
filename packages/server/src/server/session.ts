@@ -1,7 +1,7 @@
 import equal from "fast-deep-equal";
 import { v4 as uuidv4 } from "uuid";
 import { lstat, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
-import { basename, resolve, sep } from "path";
+import { basename, join, resolve, sep } from "path";
 import { homedir } from "node:os";
 import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
 import {
@@ -428,12 +428,16 @@ class SessionRequestError extends Error {
 
 export interface SessionFileSystem {
   isDirectory(path: string): Promise<boolean>;
+  createDirectory(path: string): Promise<void>;
 }
 
 const nodeSessionFileSystem: SessionFileSystem = {
   async isDirectory(path) {
     const stats = await stat(path).catch(() => null);
     return stats?.isDirectory() ?? false;
+  },
+  async createDirectory(path) {
+    await mkdir(path, { recursive: true });
   },
 };
 
@@ -5991,6 +5995,10 @@ export class Session {
         await this.handleWorkspaceCreateLocal(request);
         return;
       }
+      if (request.source.kind === "chat") {
+        await this.handleWorkspaceCreateChat(request);
+        return;
+      }
       await this.handleWorkspaceCreateWorktree(request);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create workspace";
@@ -6010,6 +6018,62 @@ export class Session {
         },
       });
     }
+  }
+
+  /**
+   * Provisions a chat: a workspace with no directory of its own.
+   *
+   * The scratch directory lives under the daemon's home rather than the user's project space,
+   * because a chat is not about a checkout and should not litter one. It is created here rather
+   * than by the client since the daemon may be on another machine, and `workspace.create` refuses
+   * a path that does not exist.
+   */
+  private async handleWorkspaceCreateChat(
+    request: Extract<SessionInboundMessage, { type: "workspace.create.request" }>,
+  ): Promise<void> {
+    if (request.source.kind !== "chat") {
+      return;
+    }
+
+    const cwd = join(this.paseoHome, "chats", uuidv4());
+    try {
+      await this.filesystem.createDirectory(cwd);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create chat directory";
+      this.emit({
+        type: "workspace.create.response",
+        payload: {
+          requestId: request.requestId,
+          workspace: null,
+          setupTerminalId: null,
+          error: message,
+        },
+      });
+      return;
+    }
+
+    const explicitTitle = request.title?.trim() || null;
+    const promptTitle = resolveFirstAgentPromptTitle(request.firstAgentContext);
+    const workspace = await this.workspaceProvisioning.createWorkspaceForDirectory(
+      cwd,
+      explicitTitle ?? promptTitle,
+      undefined,
+      { expectsInitialAgent: Boolean(request.firstAgentContext) },
+    );
+    const descriptor = await this.describeWorkspaceRecord(workspace);
+    this.emit({
+      type: "workspace.create.response",
+      payload: {
+        requestId: request.requestId,
+        workspace: descriptor,
+        setupTerminalId: null,
+        error: null,
+      },
+    });
+    await this.emitCreatedWorkspaceUpdate(
+      descriptor,
+      request.firstAgentContext ? "running" : undefined,
+    );
   }
 
   private async handleWorkspaceCreateLocal(

@@ -1078,7 +1078,7 @@ export const fr: TranslationResources = {
         label: "Regroupement",
         project: "Projet",
         status: "Statut",
-        labels: "Libellés",
+        labels: "Dossiers",
       },
       titleSource: {
         label: "Titre",
@@ -1128,6 +1128,8 @@ export const fr: TranslationResources = {
     actions: {
       addProject: "Ajouter un projet",
       newWorkspace: "Nouvel espace de travail",
+      newChat: "Nouvelle discussion",
+      newChatFailed: "Impossible de démarrer une discussion.",
       hosts: "Hôtes",
       home: "Maison",
       settings: "Paramètres",

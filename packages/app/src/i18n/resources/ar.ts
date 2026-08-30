@@ -1045,7 +1045,7 @@ export const ar: TranslationResources = {
         label: "التجميع",
         project: "المشروع",
         status: "الحالة",
-        labels: "التسميات",
+        labels: "المجلدات",
       },
       titleSource: {
         label: "العنوان",
@@ -1094,6 +1094,8 @@ export const ar: TranslationResources = {
     actions: {
       addProject: "إضافة مشروع",
       newWorkspace: "مساحة عمل جديدة",
+      newChat: "محادثة جديدة",
+      newChatFailed: "تعذر بدء محادثة.",
       hosts: "المضيفون",
       home: "بيت",
       settings: "إعدادات",

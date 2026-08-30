@@ -1052,7 +1052,7 @@ export const ko: TranslationResources = {
         label: "그룹화",
         project: "프로젝트",
         status: "상태",
-        labels: "레이블",
+        labels: "폴더",
       },
       titleSource: {
         label: "제목",
@@ -1101,6 +1101,8 @@ export const ko: TranslationResources = {
     actions: {
       addProject: "프로젝트 추가",
       newWorkspace: "새 워크스페이스",
+      newChat: "새 채팅",
+      newChatFailed: "채팅을 시작할 수 없습니다.",
       hosts: "호스트",
       home: "홈",
       settings: "설정",

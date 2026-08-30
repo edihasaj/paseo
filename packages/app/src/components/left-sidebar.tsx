@@ -5,6 +5,7 @@ import {
   GitBranch,
   History,
   Home,
+  MessageSquarePlus,
   Plus,
   Search,
   Server,
@@ -77,6 +78,10 @@ import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
 import { PluginSidebarItems } from "@/plugins";
+import { useHostRuntimeClient } from "@/runtime/host-runtime";
+import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
+import { useToast } from "@/contexts/toast-context";
+import { normalizeWorkspaceDescriptor } from "@/stores/session-store";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
 
@@ -111,6 +116,8 @@ interface SidebarSharedProps {
 interface SidebarLabels {
   addProject: string;
   newWorkspace: string;
+  newChat: string;
+  newChatFailed: string;
   hosts: string;
   home: string;
   settings: string;
@@ -236,6 +243,8 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
     (): SidebarLabels => ({
       addProject: t("sidebar.actions.addProject"),
       newWorkspace: t("sidebar.actions.newWorkspace"),
+      newChat: t("sidebar.actions.newChat"),
+      newChatFailed: t("sidebar.actions.newChatFailed"),
       hosts: t("sidebar.actions.hosts"),
       home: t("sidebar.actions.home"),
       settings: t("sidebar.actions.settings"),
@@ -486,6 +495,69 @@ function IconTooltipContent({
   );
 }
 
+/**
+ * Starts a chat: a workspace with no directory of its own.
+ *
+ * Unlike New workspace this does not route to a picker, because there is nothing to pick — the
+ * daemon provisions the scratch directory. The row hides on hosts that cannot provision one
+ * rather than failing at press time.
+ */
+const SidebarNewChatHeaderRow = memo(function SidebarNewChatHeaderRow({
+  label,
+  testID,
+  variant,
+  onBeforeNavigate,
+  createFailedMessage,
+}: {
+  label: string;
+  testID: string;
+  variant: "header" | "compact";
+  onBeforeNavigate?: () => void;
+  createFailedMessage: string;
+}) {
+  const activeWorkspaceSelection = useActiveWorkspaceSelection();
+  const serverId = activeWorkspaceSelection?.serverId ?? null;
+  const supportsChats = useHostFeature(serverId, "chatWorkspaces");
+  // Hooks cannot be conditional, and an id no host answers to resolves to a null client,
+  // which the press handler already treats as "not ready".
+  const client = useHostRuntimeClient(serverId ?? "");
+  const toast = useToast();
+  const [creating, setCreating] = useState(false);
+
+  const handlePress = useCallback(() => {
+    if (!serverId || !client || creating) return;
+    setCreating(true);
+    void (async () => {
+      try {
+        const payload = await client.createWorkspace({ source: { kind: "chat" } });
+        if (payload.error || !payload.workspace) {
+          throw new Error(payload.error ?? createFailedMessage);
+        }
+        onBeforeNavigate?.();
+        const workspace = normalizeWorkspaceDescriptor(payload.workspace);
+        navigateToWorkspace({ serverId, workspaceId: workspace.id });
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : createFailedMessage);
+      } finally {
+        setCreating(false);
+      }
+    })();
+  }, [client, creating, createFailedMessage, onBeforeNavigate, serverId, toast]);
+
+  if (!serverId || !supportsChats) return null;
+
+  return (
+    <SidebarHeaderRow
+      icon={MessageSquarePlus}
+      label={label}
+      onPress={handlePress}
+      testID={testID}
+      variant={variant}
+      shortcutKeys={null}
+    />
+  );
+});
+
 const SidebarNewWorkspaceHeaderRow = memo(function SidebarNewWorkspaceHeaderRow({
   label,
   testID,
@@ -678,6 +750,13 @@ function MobileSidebar({
             variant="compact"
             shortcutKeys={newWorkspaceKeys}
             onBeforeNavigate={closeSidebar}
+          />
+          <SidebarNewChatHeaderRow
+            label={labels.newChat}
+            testID="sidebar-global-new-chat"
+            variant="compact"
+            onBeforeNavigate={closeSidebar}
+            createFailedMessage={labels.newChatFailed}
           />
           <SidebarHeaderRow
             icon={History}
@@ -903,6 +982,12 @@ function DesktopSidebar({
               testID="sidebar-global-new-workspace"
               variant="compact"
               shortcutKeys={newWorkspaceKeys}
+            />
+            <SidebarNewChatHeaderRow
+              label={labels.newChat}
+              testID="sidebar-global-new-chat"
+              variant="compact"
+              createFailedMessage={labels.newChatFailed}
             />
             <SidebarHeaderRow
               icon={History}

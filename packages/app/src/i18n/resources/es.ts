@@ -1079,7 +1079,7 @@ export const es: TranslationResources = {
         label: "Agrupación",
         project: "Proyecto",
         status: "Estado",
-        labels: "Etiquetas",
+        labels: "Carpetas",
       },
       titleSource: {
         label: "Título",
@@ -1128,6 +1128,8 @@ export const es: TranslationResources = {
     actions: {
       addProject: "Agregar proyecto",
       newWorkspace: "Nuevo espacio de trabajo",
+      newChat: "Nuevo chat",
+      newChatFailed: "No se pudo iniciar un chat.",
       hosts: "Hosts",
       home: "Hogar",
       settings: "Ajustes",

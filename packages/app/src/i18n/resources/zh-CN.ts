@@ -1037,7 +1037,7 @@ export const zhCN: TranslationResources = {
         label: "分组",
         project: "项目",
         status: "状态",
-        labels: "标签",
+        labels: "文件夹",
       },
       titleSource: {
         label: "标题",
@@ -1086,6 +1086,8 @@ export const zhCN: TranslationResources = {
     actions: {
       addProject: "添加 project",
       newWorkspace: "新建工作区",
+      newChat: "新建对话",
+      newChatFailed: "无法开始对话。",
       hosts: "Hosts",
       home: "首页",
       settings: "设置",

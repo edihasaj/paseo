@@ -1060,7 +1060,7 @@ export const ru: TranslationResources = {
         label: "Группировка",
         project: "Проект",
         status: "Статус",
-        labels: "Метки",
+        labels: "Папки",
       },
       titleSource: {
         label: "Заголовок",
@@ -1110,6 +1110,8 @@ export const ru: TranslationResources = {
     actions: {
       addProject: "Добавить проект",
       newWorkspace: "Новое рабочее пространство",
+      newChat: "Новый чат",
+      newChatFailed: "Не удалось начать чат.",
       hosts: "Хосты",
       home: "Главная",
       settings: "Настройки",

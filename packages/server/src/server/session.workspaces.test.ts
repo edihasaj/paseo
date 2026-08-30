@@ -183,6 +183,7 @@ interface SessionTestAccess {
   };
   filesystem: {
     isDirectory(cwd: string): Promise<boolean>;
+    createDirectory(cwd: string): Promise<void>;
   };
 }
 
@@ -9596,5 +9597,62 @@ test("workspace.create.request reports an archived explicit project", async () =
     requestId: "req-archived-project",
     workspace: null,
     errorCode: "archived_project",
+  });
+});
+
+
+test("workspace.create.request provisions a chat under the daemon home", async () => {
+  const emitted: SessionOutboundMessage[] = [];
+  const workspaces = new Map<string, PersistedWorkspaceRecord>();
+  const created: string[] = [];
+  const session = createSessionForWorkspaceTests({
+    onMessage: (message) => emitted.push(message),
+    paseoHome: "/tmp/stroll-home",
+  });
+  session.filesystem.createDirectory = async (cwd: string) => {
+    created.push(cwd);
+  };
+  session.workspaceRegistry.upsert = async (record: unknown) => {
+    const workspace = record as PersistedWorkspaceRecord;
+    workspaces.set(workspace.workspaceId, workspace);
+  };
+  session.workspaceRegistry.get = async (workspaceId: string) =>
+    workspaces.get(workspaceId) ?? null;
+
+  await session.handleMessage({
+    type: "workspace.create.request",
+    requestId: "req-chat",
+    source: { kind: "chat" },
+  });
+
+  const response = findByType(emitted, "workspace.create.response");
+  expect(response?.payload).toMatchObject({ requestId: "req-chat", error: null });
+  // The scratch directory is the daemon's to make: a client on another machine cannot, and
+  // workspace.create refuses a path that is not already there.
+  expect(created).toHaveLength(1);
+  expect(created[0]?.startsWith("/tmp/stroll-home/chats/")).toBe(true);
+  const workspaceId = response?.payload.workspace?.id;
+  expect(workspaces.get(workspaceId as string)?.cwd).toBe(created[0]);
+});
+
+test("workspace.create.request reports a chat directory it could not create", async () => {
+  const emitted: SessionOutboundMessage[] = [];
+  const session = createSessionForWorkspaceTests({
+    onMessage: (message) => emitted.push(message),
+  });
+  session.filesystem.createDirectory = async () => {
+    throw new Error("EACCES: permission denied");
+  };
+
+  await session.handleMessage({
+    type: "workspace.create.request",
+    requestId: "req-chat-fail",
+    source: { kind: "chat" },
+  });
+
+  expect(findByType(emitted, "workspace.create.response")?.payload).toMatchObject({
+    requestId: "req-chat-fail",
+    workspace: null,
+    error: "EACCES: permission denied",
   });
 });

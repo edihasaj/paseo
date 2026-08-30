@@ -1070,7 +1070,7 @@ export const ptBR: TranslationResources = {
         label: "Agrupamento",
         project: "Projeto",
         status: "Status",
-        labels: "Etiquetas",
+        labels: "Pastas",
       },
       titleSource: {
         label: "Título",
@@ -1119,6 +1119,8 @@ export const ptBR: TranslationResources = {
     actions: {
       addProject: "Adicionar projeto",
       newWorkspace: "Novo workspace",
+      newChat: "Nova conversa",
+      newChatFailed: "Não foi possível iniciar uma conversa.",
       hosts: "Hosts",
       home: "Início",
       settings: "Configurações",

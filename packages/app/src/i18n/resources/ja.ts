@@ -1056,7 +1056,7 @@ export const ja: TranslationResources = {
         label: "グループ化",
         project: "プロジェクト",
         status: "ステータス",
-        labels: "ラベル",
+        labels: "フォルダ",
       },
       titleSource: {
         label: "タイトル",
@@ -1106,6 +1106,8 @@ export const ja: TranslationResources = {
     actions: {
       addProject: "プロジェクトを追加",
       newWorkspace: "新しいワークスペース",
+      newChat: "新しいチャット",
+      newChatFailed: "チャットを開始できませんでした。",
       hosts: "ホスト",
       home: "ホーム",
       settings: "設定",

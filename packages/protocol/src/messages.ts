@@ -2622,6 +2622,11 @@ export const WorkspaceCreateRequestSchema = z.object({
       path: z.string(),
       projectId: z.string().optional(),
     }),
+    // A chat is a workspace with no directory of its own to point at, so the daemon provisions a
+    // scratch one under its home. The client cannot do it: the daemon may be on another machine.
+    z.object({
+      kind: z.literal("chat"),
+    }),
     z.object({
       kind: z.literal("worktree"),
       // The project whose repo the worktree is cut from.
@@ -3490,6 +3495,8 @@ export const ServerInfoStatusPayloadSchema = z
         directorySync: z.boolean().optional(),
         // COMPAT(workspaceLabels): added in v0.5.0, remove after 2027-08-14.
         workspaceLabels: z.boolean().optional(),
+        // COMPAT(chatWorkspaces): added in v0.7.x, remove gate after 2028-08-30.
+        chatWorkspaces: z.boolean().optional(),
         // COMPAT(checkoutForgeSetAutoMerge): added in v0.2.0-beta.1. Remove the
         // feature gate and checkoutGithubSetAutoMerge fallback after 2027-01-17
         // once the supported daemon floor is >= v0.2.0.
