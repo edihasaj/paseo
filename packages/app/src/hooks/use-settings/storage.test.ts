@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { FONT_SIZE } from "@/styles/theme";
+import { isNative } from "@/constants/platform";
 import { QueryClient } from "@tanstack/react-query";
 import {
   APP_SETTINGS_KEY,
@@ -659,10 +661,12 @@ describe("appearance settings", () => {
     expect(defaultUiBaseFontSize(false)).toBe(14);
   });
 
-  it("uses a 15px content default on mobile and web", () => {
+  // Touch devices are held further away than a desktop display, so mobile keeps 15 while the
+  // pointer platforms follow the type scale.
+  it("uses a 15px content default on mobile and the scale's content size on web", () => {
     expect(defaultContentFontSize(true)).toBe(15);
-    expect(defaultContentFontSize(false)).toBe(15);
-    expect(DEFAULT_CONTENT_FONT_SIZE).toBe(defaultContentFontSize(false));
+    expect(defaultContentFontSize(false)).toBe(FONT_SIZE.content);
+    expect(DEFAULT_CONTENT_FONT_SIZE).toBe(defaultContentFontSize(isNative));
   });
 
   it("derives and persists content size from an existing interface-size preference", async () => {

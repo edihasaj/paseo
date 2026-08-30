@@ -345,11 +345,14 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     marginBottom: theme.spacing[4],
   },
   bubble: {
-    backgroundColor: theme.colors.surface3,
+    // `secondary` rather than `surface3`: the bubble marks who is speaking, and at surface3 it
+    // was a filled slab competing with the agent's prose for attention.
+    backgroundColor: theme.colors.secondary,
+    // Uniform corners. The clipped top-right corner read as a speech-bubble tail, which is a
+    // messaging-app idiom this transcript does not otherwise use.
     borderRadius: theme.borderRadius["2xl"],
-    borderTopRightRadius: theme.borderRadius.sm,
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[4],
+    paddingHorizontal: theme.spacing[3.5],
+    paddingVertical: theme.spacing[2.5],
     minWidth: 0,
     flexShrink: 1,
   },

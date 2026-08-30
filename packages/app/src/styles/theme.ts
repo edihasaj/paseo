@@ -373,7 +373,9 @@ const darkTerminalAnsi = {
 } as const;
 
 export function buildDarkSemanticColors(tint: DarkThemeConfig) {
-  const foreground = tint.foreground ?? "#fafafa";
+  // Pure white on a near-black surface reads as glare at prose sizes; zinc-200 keeps the
+  // contrast ratio well past AA while losing the halo.
+  const foreground = tint.foreground ?? "#e4e4e7";
   const ring = tint.ring ?? "#d4d4d8";
   return {
     surface0: tint.surface0,
@@ -442,17 +444,19 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
 
 // Paseo — subtle teal-green tint (default)
 const paseoDarkColors = buildDarkSemanticColors({
-  surface0: "#181B1A",
-  surface1: "#1E2120",
-  surface2: "#272A29",
-  surface3: "#434645",
-  surface4: "#595B5B",
-  surfaceDiffEmpty: "#252827",
-  surfaceSidebar: "#141716",
-  foregroundMuted: "#A1A5A4",
-  foregroundExtraMuted: "#717574",
-  border: "#252B2A",
-  borderAccent: "#2F3534",
+  // Same depth as the neutral ramp, hue held: the tint is the brand, the lightness was only
+  // ever chrome. Lifting the surfaces off near-black is what made the old set read as grey.
+  surface0: "#0F1211",
+  surface1: "#141817",
+  surface2: "#1A1E1D",
+  surface3: "#262A29",
+  surface4: "#363938",
+  surfaceDiffEmpty: "#171A19",
+  surfaceSidebar: "#0B0E0D",
+  foregroundMuted: "#8E9291",
+  foregroundExtraMuted: "#5F6362",
+  border: "#202524",
+  borderAccent: "#2A302F",
   accent: "#20744A",
   accentBright: "#7ccba0",
   destructive: "#c64f43", // warm red, hue ~7 — reads as red (not pink) against the green tint
@@ -462,17 +466,19 @@ const paseoDarkColors = buildDarkSemanticColors({
 
 // Zinc — neutral gray, no tint
 const zincDarkColors = buildDarkSemanticColors({
-  surface0: "#18181b",
-  surface1: "#1f1f22",
-  surface2: "#27272a",
-  surface3: "#3f3f46",
-  surface4: "#52525b",
-  surfaceDiffEmpty: "#242427",
-  surfaceSidebar: "#131316",
-  foregroundMuted: "#a1a1aa",
-  foregroundExtraMuted: "#71717a",
-  border: "#27272a",
-  borderAccent: "#303036",
+  // The ramp starts at zinc-950 rather than zinc-900: an editor chrome that sits a step above
+  // black lets the elevations above it separate without any of them turning grey.
+  surface0: "#0e0e10",
+  surface1: "#131315",
+  surface2: "#18181a",
+  surface3: "#232327",
+  surface4: "#2e2e33",
+  surfaceDiffEmpty: "#151517",
+  surfaceSidebar: "#0a0a0c",
+  foregroundMuted: "#7f7f87",
+  foregroundExtraMuted: "#5a5a61",
+  border: "#2b2b2d",
+  borderAccent: "#35353a",
   accent: "#e4e4e7",
   accentBright: "#fafafa",
   accentForeground: "#18181b", // monochrome zinc accent is near-white — needs dark text
@@ -547,7 +553,9 @@ export const SPACING = {
   1: 4,
   1.5: 6,
   2: 8,
+  2.5: 10,
   3: 12,
+  3.5: 14,
   4: 16,
   6: 24,
   8: 32,
@@ -560,7 +568,9 @@ export const SPACING = {
 
 export const FONT_SIZE = {
   code: 12,
-  content: 15,
+  // Chat prose and the composer share one metric; 14 is the size the rest of the scale is
+  // built around, and 15 left the two a pixel apart for no reason a reader can see.
+  content: 14,
   sm: 12,
   base: 14,
   lg: 16,
