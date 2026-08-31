@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative as relativePath } from "node:path";
 import test from "node:test";
 
@@ -10,6 +10,16 @@ const nixWorkflowPath = new URL(".github/workflows/nix.yml", repoRoot);
 const filtersPath = new URL(".github/ci-paths.yml", repoRoot);
 const serverTsconfigPath = new URL("packages/server/tsconfig.server.json", repoRoot);
 const desktopPackagePath = new URL("packages/desktop/package.json", repoRoot);
+const desktopBuilderPath = new URL("packages/desktop/electron-builder.yml", repoRoot);
+const nixDesktopPackagePath = new URL("nix/desktop-package.nix", repoRoot);
+const nixPackagePath = new URL("nix/package.nix", repoRoot);
+const lockfilePath = new URL("package-lock.json", repoRoot);
+const traceDaemonPath = new URL("scripts/trace-daemon.mjs", repoRoot);
+const packagedWebDaemonPath = new URL(
+  "packages/app/e2e/support/helpers/packaged-web-daemon.ts",
+  repoRoot,
+);
+const sidebarHelpSpecPath = new URL("packages/app/e2e/browser/sidebar-help.spec.ts", repoRoot);
 
 const gatedCiJobs = new Map([
   ["format", { name: "format", contract: "format" }],
@@ -257,4 +267,39 @@ test("non-required Docker and Nix workflows avoid runners with workflow path fil
     assert.match(trigger, /^\s+paths:\s*$/m);
     assert.doesNotMatch(source, /dorny\/paths-filter/);
   }
+});
+
+test("packaging and hosted smoke tests follow the published CLI and desktop identities", () => {
+  const cliPackage = JSON.parse(
+    readFileSync(new URL("packages/cli/package.json", repoRoot), "utf8"),
+  );
+  const lockfile = JSON.parse(readFileSync(lockfilePath, "utf8"));
+  const traceDaemon = readFileSync(traceDaemonPath, "utf8");
+  const packagedWebDaemon = readFileSync(packagedWebDaemonPath, "utf8");
+  const knipConfig = JSON.parse(readFileSync(new URL("knip.json", repoRoot), "utf8"));
+  const nixPackage = readFileSync(nixPackagePath, "utf8");
+  const nixDesktopPackage = readFileSync(nixDesktopPackagePath, "utf8");
+  const nixWorkflow = readFileSync(nixWorkflowPath, "utf8");
+  const desktopBuilder = readFileSync(desktopBuilderPath, "utf8");
+  const sidebarHelpSpec = readFileSync(sidebarHelpSpecPath, "utf8");
+
+  assert.deepEqual(cliPackage.bin, { stroll: "bin/stroll" });
+  assert.deepEqual(lockfile.packages["packages/cli"].bin, cliPackage.bin);
+  assert.match(traceDaemon, /"packages\/cli\/bin\/stroll"/);
+  assert.doesNotMatch(traceDaemon, /"packages\/cli\/bin\/paseo"/);
+  assert.ok(existsSync(new URL("packages/cli/bin/stroll", repoRoot)));
+  assert.match(packagedWebDaemon, /node_modules\/\.bin\/stroll/);
+  assert.doesNotMatch(packagedWebDaemon, /node_modules\/\.bin\/paseo/);
+  assert.ok(knipConfig.workspaces["packages/cli"].entry.includes("bin/stroll"));
+  assert.match(nixPackage, /\$out\/bin\/stroll/);
+  assert.match(nixPackage, /mainProgram = "stroll"/);
+  assert.match(nixWorkflow, /\.\/result\/bin\/stroll daemon status/);
+
+  assert.match(desktopBuilder, /^appId: com\.edihasaj\.stroll\.desktop$/m);
+  assert.match(desktopBuilder, /^productName: Stroll$/m);
+  assert.match(desktopBuilder, /^executableName: Stroll$/m);
+  assert.match(sidebarHelpSpec, /const APP_VERSION = \/\^Stroll\\s\*/);
+  assert.match(nixDesktopPackage, /Applications\/Stroll\.app\/Contents\/MacOS\/Stroll/);
+  assert.match(nixWorkflow, /Applications\/Stroll\.app/);
+  assert.match(nixWorkflow, /com\.edihasaj\.stroll\.desktop/);
 });
