@@ -40,6 +40,7 @@ import { LaunchControl } from "@/new-workspace-launch/launch-control";
 import { resolveLaunchTarget, type LaunchTarget } from "@/new-workspace-launch/target";
 import { useTerminalComposerState } from "@/new-workspace-launch/composer-state";
 import { runCreateTerminalWorkspace } from "./new-workspace-terminal";
+import { createChatWorkspace } from "./new-chat-workspace";
 import {
   useHostRuntimeClient,
   useHostRuntimeConnectionStatuses,
@@ -171,12 +172,22 @@ function buildFirstAgentContext(input: {
   };
 }
 
+type NewWorkspaceMode = "workspace" | "chat";
+
 interface NewWorkspaceScreenProps {
   serverId: string;
   sourceDirectory?: string;
   projectId?: string;
   displayName?: string;
   draftId?: string;
+  mode: NewWorkspaceMode;
+}
+
+function resolveNewWorkspaceModeValue<T>(
+  mode: NewWorkspaceMode,
+  values: Record<NewWorkspaceMode, T>,
+): T {
+  return values[mode];
 }
 
 // A terminal launch sends argv, not a message: there is nothing to attach and
@@ -1212,7 +1223,10 @@ function useNewWorkspaceInitialContext({
   sourceDirectory: sourceDirectoryProp,
   projectId,
   displayName: displayNameProp,
-}: NewWorkspaceScreenProps): NewWorkspaceInitialContextState {
+}: Pick<
+  NewWorkspaceScreenProps,
+  "serverId" | "sourceDirectory" | "projectId" | "displayName"
+>): NewWorkspaceInitialContextState {
   const allHosts = useHosts();
   const allServerIds = useMemo(() => allHosts.map((h) => h.serverId), [allHosts]);
   const projects = useHostProjects(allServerIds);
@@ -1545,6 +1559,7 @@ export function NewWorkspaceScreen({
   projectId,
   displayName: displayNameProp,
   draftId,
+  mode,
 }: NewWorkspaceScreenProps) {
   const queryClient = useQueryClient();
   const { theme } = useUnistyles();
@@ -1553,6 +1568,7 @@ export function NewWorkspaceScreen({
   const isCompact = useIsCompactFormFactor();
   const toast = useToast();
   const mergeWorkspaces = useSessionStore((state) => state.mergeWorkspaces);
+  const isChatDraft = mode === "chat";
   const {
     allHosts,
     selectedServerId,
@@ -1672,7 +1688,10 @@ export function NewWorkspaceScreen({
       serverId: selectedServerId,
       isConnected,
       workspaceDirectory: workspace?.workspaceDirectory ?? null,
-      sourceDirectory: selectedSourceDirectory,
+      sourceDirectory: resolveNewWorkspaceModeValue(mode, {
+        workspace: selectedSourceDirectory,
+        chat: null,
+      }),
       initialSetup: forkDraftSetup?.setup,
     }),
   });
@@ -1973,13 +1992,25 @@ export function NewWorkspaceScreen({
       if (createdWorkspace) {
         return createdWorkspace;
       }
+      const connectedClient = withConnectedClient();
+      if (isChatDraft) {
+        const chatWorkspace = await createChatWorkspace({
+          client: connectedClient,
+          serverId: selectedServerId,
+          prompt: input.prompt,
+          attachments: input.attachments,
+          mergeWorkspaces,
+          createFailedMessage: t("sidebar.actions.newChatFailed"),
+        });
+        setCreatedWorkspace(chatWorkspace);
+        return chatWorkspace;
+      }
       if (!selectedProject) {
         throw new Error("Choose a project");
       }
       if (!selectedSourceDirectory) {
         throw new Error("Choose a host for this project");
       }
-      const connectedClient = withConnectedClient();
       const createsWorktree = !supportsWorkspaceMultiplicity || effectiveIsolation === "worktree";
       const checkoutStatusForCreate = createsWorktree
         ? await ensureCheckoutStatus({
@@ -2022,6 +2053,7 @@ export function NewWorkspaceScreen({
       buildCreateWorktreeInput,
       createdWorkspace,
       effectiveIsolation,
+      isChatDraft,
       mergeWorkspaces,
       queryClient,
       selectedItem,
@@ -2275,10 +2307,17 @@ export function NewWorkspaceScreen({
         <TitlebarDragRegion />
         <ReanimatedAnimated.View style={centeredStyle}>
           <View style={styles.composerTitleContainer}>
-            <Text style={styles.composerTitle}>{t("newWorkspace.title")}</Text>
+            <Text style={styles.composerTitle}>
+              {t(
+                resolveNewWorkspaceModeValue(mode, {
+                  workspace: "newWorkspace.title",
+                  chat: "sidebar.actions.newChat",
+                }),
+              )}
+            </Text>
           </View>
-          {formStack}
-          {isTerminalLaunch ? (
+          {resolveNewWorkspaceModeValue(mode, { workspace: formStack, chat: null })}
+          {resolveNewWorkspaceModeValue(mode, { workspace: isTerminalLaunch, chat: false }) ? (
             <Composer
               key="terminal"
               externalKeyboardShift
@@ -2314,7 +2353,10 @@ export function NewWorkspaceScreen({
               serverId={selectedServerId}
               isPaneFocused={true}
               onSubmitMessage={handleSubmitNewWorkspace}
-              allowEmptySubmit={true}
+              allowEmptySubmit={resolveNewWorkspaceModeValue(mode, {
+                workspace: true,
+                chat: false,
+              })}
               submitButtonAccessibilityLabel={t("newWorkspace.create")}
               submitButtonTestID="workspace-create-submit"
               submitIcon="return"
@@ -2330,7 +2372,10 @@ export function NewWorkspaceScreen({
               onChangeAttachments={chatDraft.setAttachments}
               onForgeChangeRequestDetected={handleForgeChangeRequestDetected}
               onForgeChangeRequestAutoAttach={handleForgeChangeRequestAutoAttach}
-              cwd={selectedSourceDirectory ?? ""}
+              cwd={resolveNewWorkspaceModeValue(mode, {
+                workspace: selectedSourceDirectory ?? "",
+                chat: "",
+              })}
               clearDraft={handleClearDraft}
               autoFocus
               autoFocusKey={launchFocusKey}

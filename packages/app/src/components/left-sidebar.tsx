@@ -79,10 +79,7 @@ import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
 import { PluginSidebarItems } from "@/plugins";
-import { useHostRuntimeClient } from "@/runtime/host-runtime";
-import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
-import { useToast } from "@/contexts/toast-context";
-import { normalizeWorkspaceDescriptor } from "@/stores/session-store";
+import { generateDraftId } from "@/stores/draft-keys";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
 
@@ -118,7 +115,6 @@ interface SidebarLabels {
   addProject: string;
   newWorkspace: string;
   newChat: string;
-  newChatFailed: string;
   hosts: string;
   home: string;
   settings: string;
@@ -245,7 +241,6 @@ export const LeftSidebar = memo(function LeftSidebar({ active }: { active: boole
       addProject: t("sidebar.actions.addProject"),
       newWorkspace: t("sidebar.actions.newWorkspace"),
       newChat: t("sidebar.actions.newChat"),
-      newChatFailed: t("sidebar.actions.newChatFailed"),
       hosts: t("sidebar.actions.hosts"),
       home: t("sidebar.actions.home"),
       settings: t("sidebar.actions.settings"),
@@ -497,24 +492,18 @@ function IconTooltipContent({
 }
 
 /**
- * Starts a chat: a workspace with no directory of its own.
- *
- * Unlike New workspace this does not route to a picker, because there is nothing to pick — the
- * daemon provisions the scratch directory. The row hides on hosts that cannot provision one
- * rather than failing at press time.
+ * Opens a blank chat draft. The daemon provisions its scratch workspace only when the draft sends.
  */
 const SidebarNewChatHeaderRow = memo(function SidebarNewChatHeaderRow({
   label,
   testID,
   variant,
   onBeforeNavigate,
-  createFailedMessage,
 }: {
   label: string;
   testID: string;
   variant: "header" | "compact";
   onBeforeNavigate?: () => void;
-  createFailedMessage: string;
 }) {
   // A chat needs a host, not a workspace. Keying this off the active selection hid the row on a
   // fresh install — the one state where starting a chat is the only thing you can do.
@@ -522,31 +511,12 @@ const SidebarNewChatHeaderRow = memo(function SidebarNewChatHeaderRow({
   const onlineHostServerId = useEarliestOnlineHostServerId();
   const serverId = activeWorkspaceSelection?.serverId ?? onlineHostServerId;
   const supportsChats = useHostFeature(serverId, "chatWorkspaces");
-  // Hooks cannot be conditional, and an id no host answers to resolves to a null client,
-  // which the press handler already treats as "not ready".
-  const client = useHostRuntimeClient(serverId ?? "");
-  const toast = useToast();
-  const [creating, setCreating] = useState(false);
 
   const handlePress = useCallback(() => {
-    if (!serverId || !client || creating) return;
-    setCreating(true);
-    void (async () => {
-      try {
-        const payload = await client.createWorkspace({ source: { kind: "chat" } });
-        if (payload.error || !payload.workspace) {
-          throw new Error(payload.error ?? createFailedMessage);
-        }
-        onBeforeNavigate?.();
-        const workspace = normalizeWorkspaceDescriptor(payload.workspace);
-        navigateToWorkspace({ serverId, workspaceId: workspace.id });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : createFailedMessage);
-      } finally {
-        setCreating(false);
-      }
-    })();
-  }, [client, creating, createFailedMessage, onBeforeNavigate, serverId, toast]);
+    if (!serverId) return;
+    onBeforeNavigate?.();
+    router.push(buildNewWorkspaceRoute({ serverId, draftId: generateDraftId(), mode: "chat" }));
+  }, [onBeforeNavigate, serverId]);
 
   if (!serverId || !supportsChats) return null;
 
@@ -760,7 +730,6 @@ function MobileSidebar({
             testID="sidebar-global-new-chat"
             variant="compact"
             onBeforeNavigate={closeSidebar}
-            createFailedMessage={labels.newChatFailed}
           />
           <SidebarHeaderRow
             icon={History}
@@ -991,7 +960,6 @@ function DesktopSidebar({
               label={labels.newChat}
               testID="sidebar-global-new-chat"
               variant="compact"
-              createFailedMessage={labels.newChatFailed}
             />
             <SidebarHeaderRow
               icon={History}

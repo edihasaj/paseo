@@ -438,6 +438,7 @@ interface NewWorkspaceRouteOptions {
   displayName?: string;
   projectId?: string;
   draftId?: string;
+  mode?: "chat";
 }
 
 function buildNewWorkspaceSearch(options: NewWorkspaceRouteOptions): string {
@@ -457,6 +458,9 @@ function buildNewWorkspaceSearch(options: NewWorkspaceRouteOptions): string {
   }
   if (options.draftId) {
     params.set("draftId", options.draftId);
+  }
+  if (options.mode) {
+    params.set("mode", options.mode);
   }
   return params.toString();
 }
