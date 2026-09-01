@@ -35,7 +35,20 @@ export class AgentQueueStore {
 
   async list(agentId: string): Promise<AgentQueuedPrompt[]> {
     await this.load(agentId);
+    await this.flush(agentId);
     return (this.promptsByAgent.get(agentId) ?? []).map(clone);
+  }
+
+  async flush(agentId: string): Promise<void> {
+    // RPC handlers list immediately after their mutation. Concurrent requests can
+    // already have registered later writes by then, so wait until the tail stays
+    // stable. This also gives daemon/session teardown a completion barrier.
+    for (;;) {
+      const pending = this.writesByAgent.get(agentId);
+      if (!pending) break;
+      await pending;
+      if (this.writesByAgent.get(agentId) === pending) break;
+    }
   }
 
   async enqueue(input: {
@@ -136,13 +149,7 @@ export class AgentQueueStore {
     mutation: (current: AgentQueuedPrompt[]) => { next: AgentQueuedPrompt[]; value: T },
   ): Promise<T> {
     const previous = this.writesByAgent.get(agentId) ?? Promise.resolve();
-    let resolveValue!: (value: T) => void;
-    let rejectValue!: (error: unknown) => void;
-    const value = new Promise<T>((resolve, reject) => {
-      resolveValue = resolve;
-      rejectValue = reject;
-    });
-    const write = previous
+    const operation = previous
       .catch(() => undefined)
       .then(async () => {
         await this.load(agentId);
@@ -156,18 +163,17 @@ export class AgentQueueStore {
             // Queue persistence remains authoritative if a presentation subscriber fails.
           }
         }
-        resolveValue(result.value);
-        return undefined;
-      })
-      .catch((error) => {
-        rejectValue(error);
-        return undefined;
+        return result.value;
       });
+    const write = operation.then(
+      () => undefined,
+      () => undefined,
+    );
     const tracked = write.finally(() => {
       if (this.writesByAgent.get(agentId) === tracked) this.writesByAgent.delete(agentId);
     });
     this.writesByAgent.set(agentId, tracked);
-    return value;
+    return operation;
   }
 
   private async load(agentId: string): Promise<void> {

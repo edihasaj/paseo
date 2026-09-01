@@ -1529,7 +1529,6 @@ export function BrowserPane({
                 : t("workspace.browser.controls.annotateElement")
             }
             active={selectorMode === "annotate"}
-            disabled={browser?.isLoading}
             onPress={handleToggleElementSelector}
             style={annotateIconButtonStyle}
           >
@@ -1547,7 +1546,6 @@ export function BrowserPane({
                 : t("workspace.browser.controls.screenshotElement")
             }
             active={selectorMode === "screenshot"}
-            disabled={browser?.isLoading}
             onPress={handleToggleScreenshot}
             style={screenshotIconButtonStyle}
           >

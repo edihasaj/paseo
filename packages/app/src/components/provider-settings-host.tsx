@@ -8,6 +8,7 @@ export function ProviderSettingsHost() {
   const provider = useProviderSettingsStore((state) => state.provider);
   const visible = useProviderSettingsStore((state) => state.visible);
   const overlayParentLayer = useProviderSettingsStore((state) => state.overlayParentLayer);
+  const restoreFocusRef = useProviderSettingsStore((state) => state.restoreFocusRef);
   const close = useProviderSettingsStore((state) => state.close);
 
   const handleClose = useCallback(() => {
@@ -26,6 +27,7 @@ export function ProviderSettingsHost() {
         serverId={serverId}
         visible={visible}
         onClose={handleClose}
+        restoreFocusRef={restoreFocusRef}
       />
     </OverlayLayerProvider>
   );

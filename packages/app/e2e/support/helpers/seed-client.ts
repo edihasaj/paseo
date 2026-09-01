@@ -2,6 +2,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import type { TerminalActivity } from "@getpaseo/protocol/terminal-activity";
 import { connectDaemonClient } from "./daemon-client-loader";
+import { getServerId } from "./server-id";
 import { withProjectOwnership } from "./project-ownership";
 import { createTempDirectory, createTempGitRepo } from "./workspace";
 
@@ -157,6 +158,7 @@ export interface SeedDaemonClient {
     agentId: string;
   }): Promise<{ agent: { id: string; archivedAt?: string | null } } | null>;
   getLastServerInfoMessage(): {
+    serverId: string;
     features?: {
       projectAdd?: boolean;
       workspaceRecovery?: boolean;
@@ -195,6 +197,16 @@ export async function connectSeedClient(options?: {
     appVersion: loadAppVersion(),
     port: options?.port,
   });
+  if (options?.port === undefined) {
+    const expectedServerId = getServerId();
+    const actualServerId = client.getLastServerInfoMessage()?.serverId;
+    if (actualServerId !== expectedServerId) {
+      await client.close().catch(() => undefined);
+      throw new Error(
+        `Seed client connected to ${actualServerId ?? "an unidentified daemon"}; expected ${expectedServerId}.`,
+      );
+    }
+  }
   return options?.projectOwnership === "host" ? client : withProjectOwnership(client);
 }
 

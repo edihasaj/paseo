@@ -7,7 +7,7 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "darwin",
         isPackaged: true,
-        executablePath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+        executablePath: "/Applications/Stroll.app/Contents/MacOS/Stroll",
         shimPath: "/Applications/Stroll.app/Contents/Resources/bin/stroll",
       }),
     ).toBe("/Applications/Stroll.app/Contents/Resources/bin/stroll");
@@ -18,11 +18,11 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "linux",
         isPackaged: true,
-        executablePath: "/tmp/.mount_paseo123/paseo",
+        executablePath: "/tmp/.mount_stroll123/Stroll",
         shimPath: "/tmp/.mount_stroll123/resources/bin/stroll",
-        appImagePath: "/home/user/Applications/Paseo.AppImage",
+        appImagePath: "/home/user/Applications/Stroll.AppImage",
       }),
-    ).toBe("/home/user/Applications/Paseo.AppImage");
+    ).toBe("/home/user/Applications/Stroll.AppImage");
   });
 
   it("falls back to the shim on windows and in development", () => {
@@ -30,16 +30,16 @@ describe("cli-install-path", () => {
       resolveCliInstallSourcePath({
         platform: "win32",
         isPackaged: true,
-        executablePath: "C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\Paseo.exe",
-        shimPath: "C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd",
+        executablePath: "C:\\Users\\user\\AppData\\Local\\Programs\\Stroll\\Stroll.exe",
+        shimPath: "C:\\Users\\user\\AppData\\Local\\Programs\\Stroll\\resources\\bin\\stroll.cmd",
       }),
-    ).toBe("C:\\Users\\user\\AppData\\Local\\Programs\\Paseo\\resources\\bin\\paseo.cmd");
+    ).toBe("C:\\Users\\user\\AppData\\Local\\Programs\\Stroll\\resources\\bin\\stroll.cmd");
 
     expect(
       resolveCliInstallSourcePath({
         platform: "linux",
         isPackaged: false,
-        executablePath: "/opt/Paseo/paseo",
+        executablePath: "/opt/Stroll/Stroll",
         shimPath: "/opt/Stroll/resources/bin/stroll",
       }),
     ).toBe("/opt/Stroll/resources/bin/stroll");

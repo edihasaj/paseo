@@ -9629,7 +9629,9 @@ test("workspace.create.request provisions a chat under the daemon home", async (
   // The scratch directory is the daemon's to make: a client on another machine cannot, and
   // workspace.create refuses a path that is not already there.
   expect(created).toHaveLength(1);
-  expect(created[0]?.startsWith("/tmp/stroll-home/chats/")).toBe(true);
+  expect(path.relative(path.resolve("/tmp/stroll-home", "chats"), created[0] ?? "")).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
   const workspaceId = response?.payload.workspace?.id;
   expect(workspaces.get(workspaceId as string)?.cwd).toBe(created[0]);
 });
@@ -9687,5 +9689,7 @@ test("workspace.create.request schedules a name for a chat opened with a prompt"
 
   // A chat's directory is a uuid, so the prompt is the only thing it can be named from.
   expect(scheduled).toHaveLength(1);
-  expect(scheduled[0]?.cwd.startsWith("/tmp/stroll-home/chats/")).toBe(true);
+  expect(path.relative(path.resolve("/tmp/stroll-home", "chats"), scheduled[0]?.cwd ?? "")).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
 });

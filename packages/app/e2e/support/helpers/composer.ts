@@ -1,5 +1,4 @@
 import { expect, type Page } from "@playwright/test";
-import { buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { createTempGitRepo } from "./workspace";
 import { connectSeedClient, type SeedDaemonClient } from "./seed-client";
 import { gotoAppShell } from "./app";
@@ -8,6 +7,7 @@ import { selectWorkspaceInSidebar } from "./sidebar";
 import { getServerId } from "./server-id";
 import { waitForTabBar } from "./launcher";
 import { waitForSettledPosition } from "./sheet-layout";
+import { waitForWorkspaceInSidebar } from "./workspace-ui";
 
 function composerInput(page: Page) {
   return page.getByRole("textbox", { name: "Message agent..." }).first();
@@ -231,8 +231,26 @@ export async function startRunningMockAgent(
     model: opts.model,
     featureValues: opts.featureValues,
   });
-  const agentUrl = `${buildHostWorkspaceRoute(serverId, workspace.id)}?open=${encodeURIComponent(`agent:${agent.id}`)}`;
-  await page.goto(agentUrl);
+  const persistedWorkspace = (await client.fetchWorkspaces()).entries.find(
+    (entry) => entry.id === workspace.id,
+  );
+  if (!persistedWorkspace || persistedWorkspace.projectId !== workspace.projectId) {
+    throw new Error(`Seeded workspace ${workspace.id} is not visible in the daemon store.`);
+  }
+
+  // Hydrate the browser from the same daemon before entering the workspace route.
+  // A cold direct route can resolve the workspace lookup before its initial snapshot
+  // arrives and remain on the unavailable state even though seeding succeeded.
+  await gotoAppShell(page);
+  await waitForWorkspaceInSidebar(page, { serverId, workspaceId: workspace.id });
+  await selectWorkspaceInSidebar(page, workspace.id);
+  await waitForTabBar(page);
+  const agentTab = page
+    .getByTestId(`workspace-tab-agent_${agent.id}`)
+    .filter({ visible: true })
+    .first();
+  await expect(agentTab).toBeVisible({ timeout: 30_000 });
+  await agentTab.click();
   await expectComposerVisible(page);
   await client.sendAgentMessage(agent.id, opts.prompt);
   await expect(page.getByRole("button", { name: /stop|cancel/i }).first()).toBeVisible({

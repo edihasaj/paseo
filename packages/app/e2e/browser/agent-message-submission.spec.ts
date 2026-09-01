@@ -407,7 +407,7 @@ async function expectInterruptedTurnOrderAfterReconnect(
     await page.getByRole("button", { name: "Send queued message now" }).click();
     const promptRow = page.getByTestId("user-message").filter({ hasText: prompt });
     await expect(promptRow).toBeVisible();
-    await gate.waitForServerMessage("send_agent_message_response");
+    await gate.waitForServerMessage("agent.queue.send_now.response");
     await gate.drop();
     await agent.client.waitForFinish(agent.agentId, 30_000);
     gate.setAgentStreamSuppressed(false);
@@ -1224,7 +1224,7 @@ test.describe("Agent message submission", () => {
     page,
   }, testInfo) => {
     test.setTimeout(120_000);
-    const gate = await gateNextAgentMessage(page);
+    const gate = await installDaemonWebSocketGate(page);
     const agent = await startRunningMockAgent(page, {
       prefix: `overlapping-queued-send-${testInfo.workerIndex}-`,
       model: "one-minute-stream",
@@ -1234,13 +1234,16 @@ test.describe("Agent message submission", () => {
     try {
       await queueMessage(page, prompts[0]);
       await queueMessage(page, prompts[1]);
+      gate.holdNextClientRequest("agent.queue.send_now.request");
       await page.getByRole("button", { name: "Send queued message now" }).first().click();
-      await gate.waitForRequest(1);
-      await page.getByRole("button", { name: "Send queued message now" }).first().click();
-      await gate.waitForRequest(2);
-      await gate.disconnect();
+      await gate.waitForHeldClientRequest();
+      gate.holdNextClientRequest("agent.queue.send_now.request");
+      await page.getByRole("button", { name: "Send queued message now" }).last().click();
+      await gate.waitForHeldClientRequest();
+      await gate.drop();
       await expectQueuedSendFailuresRestored(page, prompts);
     } finally {
+      gate.restore();
       await agent.cleanup();
     }
   });

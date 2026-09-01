@@ -8,26 +8,28 @@ const CLI_ENTRYPOINT: NodeEntrypointSpec = {
   entryPath: "/tmp/paseo-cli.js",
   execArgv: ["--import", "tsx"],
 };
+const PACKAGED_EXECUTABLE = "/Applications/Stroll.app/Contents/MacOS/Stroll";
+const PACKAGED_RUNNER =
+  "/Applications/Stroll.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js";
 
 describe("node-entrypoint-launcher", () => {
   describe("createNodeEntrypointInvocation", () => {
     it("uses the packaged runner when the desktop app is packaged", () => {
       expect(
         createNodeEntrypointInvocation({
-          execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+          execPath: PACKAGED_EXECUTABLE,
           isPackaged: true,
-          packagedRunnerPath:
-            "/Applications/Paseo.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js",
+          packagedRunnerPath: PACKAGED_RUNNER,
           entrypoint: CLI_ENTRYPOINT,
           argvMode: "node-script",
           args: ["ls", "--json"],
           baseEnv: { PATH: "/usr/bin" },
         }),
       ).toEqual({
-        command: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+        command: PACKAGED_EXECUTABLE,
         args: [
           "--disable-warning=DEP0040",
-          "/Applications/Paseo.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js",
+          PACKAGED_RUNNER,
           "node-script",
           "/tmp/paseo-cli.js",
           "ls",
@@ -66,10 +68,9 @@ describe("node-entrypoint-launcher", () => {
     it("forces packaged launches to production even when NODE_ENV is inherited as development", () => {
       expect(
         createNodeEntrypointInvocation({
-          execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+          execPath: PACKAGED_EXECUTABLE,
           isPackaged: true,
-          packagedRunnerPath:
-            "/Applications/Paseo.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js",
+          packagedRunnerPath: PACKAGED_RUNNER,
           entrypoint: CLI_ENTRYPOINT,
           argvMode: "node-script",
           args: [],
@@ -86,20 +87,19 @@ describe("node-entrypoint-launcher", () => {
     it("keeps node-style argv for packaged script entrypoints", () => {
       expect(
         createNodeEntrypointInvocation({
-          execPath: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+          execPath: PACKAGED_EXECUTABLE,
           isPackaged: true,
-          packagedRunnerPath:
-            "/Applications/Paseo.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js",
+          packagedRunnerPath: PACKAGED_RUNNER,
           entrypoint: CLI_ENTRYPOINT,
           argvMode: "node-script",
           args: ["--dev"],
           baseEnv: { PATH: "/usr/bin" },
         }),
       ).toEqual({
-        command: "/Applications/Paseo.app/Contents/MacOS/Paseo",
+        command: PACKAGED_EXECUTABLE,
         args: [
           "--disable-warning=DEP0040",
-          "/Applications/Paseo.app/Contents/Resources/app.asar/dist/daemon/node-entrypoint-runner.js",
+          PACKAGED_RUNNER,
           "node-script",
           "/tmp/paseo-cli.js",
           "--dev",

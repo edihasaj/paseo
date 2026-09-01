@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
@@ -453,6 +453,8 @@ export interface AdaptiveModalSheetProps {
   sizeContentToCurrentSnapPoint?: boolean;
   /** Re-establishes caller-owned contexts inside the compact bottom-sheet portal. */
   contextBridge?: ContextBridge | null;
+  /** Explicit web focus target restored after the sheet closes. */
+  restoreFocusRef?: RefObject<unknown>;
 }
 
 export function AdaptiveModalSheet({
@@ -471,6 +473,7 @@ export function AdaptiveModalSheet({
   contentStyle,
   sizeContentToCurrentSnapPoint = false,
   contextBridge = null,
+  restoreFocusRef,
 }: AdaptiveModalSheetProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
@@ -582,9 +585,13 @@ export function AdaptiveModalSheet({
     [onClose],
   );
   const setWebOverlayScope = useWebOverlayRegistration({
-    active: isWeb && !isMobile && visible,
+    // Keep the focus scope registered through the exit animation. Restoring
+    // focus while the closing dialog is still mounted lets its own focusable
+    // children reclaim focus before the caller can observe the opener.
+    active: isWeb && !isMobile && shouldRenderWeb,
     layer: modalLayer,
     onKeyDown: handleWebOverlayKeyDown,
+    restoreFocusRef,
   });
 
   useEffect(() => {

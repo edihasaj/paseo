@@ -39,26 +39,6 @@ async function expectModelBrowserVisible(page: Page) {
   await expect(page.getByRole("button", { name: /Open .* settings/ })).toBeVisible();
 }
 
-async function closeTopSheet(page: Page) {
-  const closeTarget = page.getByLabel("Close", { exact: true }).last();
-  if (await closeTarget.isVisible().catch(() => false)) {
-    await closeTarget.click({ force: true });
-    return;
-  }
-
-  const handle = page.getByRole("slider", { name: "Bottom sheet handle" }).last();
-  const handleBox = await handle.boundingBox();
-  if (!handleBox) {
-    throw new Error("Bottom sheet handle was not measurable");
-  }
-  const startX = handleBox.x + handleBox.width / 2;
-  const startY = handleBox.y + handleBox.height / 2;
-  await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX, startY + 400, { steps: 8 });
-  await page.mouse.up();
-}
-
 async function closeSheetByHeaderButton(page: Page, testId: string) {
   const sheet = page.getByTestId(testId);
   await sheet.getByLabel("Close", { exact: true }).click();
@@ -200,12 +180,9 @@ test.describe("provider settings overlay stack", () => {
       await closeSheetByHeaderButton(page, "provider-settings-sheet");
 
       await expectModelBrowserVisible(page);
-      await closeTopSheet(page);
-      await expect(page.getByTestId("agent-controls-model-browser-sheet")).not.toBeVisible({
-        timeout: 10_000,
-      });
+      await closeSheetByHeaderButton(page, "agent-controls-model-browser-sheet");
       await expect(page.getByTestId("agent-controls-settings-list")).toBeVisible();
-      await closeTopSheet(page);
+      await closeSheetByHeaderButton(page, "agent-controls-model-sheet");
     } finally {
       await session.cleanup();
     }

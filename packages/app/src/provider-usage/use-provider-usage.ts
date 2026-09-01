@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -37,6 +37,7 @@ export function useProviderUsage(
     (state) => state.sessions[serverId ?? ""]?.serverInfo?.features?.providerUsageList === true,
   );
   const queryKey = useMemo(() => providerUsageQueryKey(serverId), [serverId]);
+  const refreshRequestRef = useRef(0);
   const canFetch = Boolean(serverId && client && isConnected && supportsProviderUsage);
   const enabled = Boolean((options.enabled ?? true) && canFetch);
 
@@ -59,8 +60,11 @@ export function useProviderUsage(
 
   const refresh = useCallback(async () => {
     if (!canFetch || !client) return;
+    const request = ++refreshRequestRef.current;
     const payload = await client.listProviderUsage({ forceRefresh: true });
-    queryClient.setQueryData(queryKey, payload);
+    if (request === refreshRequestRef.current) {
+      queryClient.setQueryData(queryKey, payload);
+    }
   }, [canFetch, client, queryClient, queryKey]);
 
   const view = useMemo<ProviderUsageView>(() => {

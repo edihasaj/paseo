@@ -1,7 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { AlertTriangle, Copy, FileText, Plus, RotateCw, Trash2 } from "lucide-react-native";
 import type { TFunction } from "i18next";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, type PressableStateCallbackType, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
@@ -36,6 +36,7 @@ interface ProviderDiagnosticSheetProps {
   visible: boolean;
   onClose: () => void;
   serverId: string;
+  restoreFocusRef?: RefObject<unknown>;
 }
 
 function rankModels<T>(items: T[], query: string, fields: (item: T) => string[]): T[] {
@@ -571,6 +572,7 @@ export function ProviderDiagnosticSheet({
   visible,
   onClose,
   serverId,
+  restoreFocusRef,
 }: ProviderDiagnosticSheetProps) {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
@@ -695,6 +697,7 @@ export function ProviderDiagnosticSheet({
           onRefreshModels: handleRefreshModels,
         })}
         snapPoints={MAIN_SNAP_POINTS}
+        restoreFocusRef={restoreFocusRef}
       >
         <ProviderModalBody
           discoveredCount={discoveredModels.length}
