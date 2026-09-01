@@ -135,3 +135,95 @@ test("marks an interrupted agent without a persistence handle as unrecoverable",
       "Paseo could not resume this agent after the daemon restart: the codex conversation is not resumable on this daemon",
   });
 });
+
+test("does not resume an agent whose cancellation was interrupted by the restart", async () => {
+  const fixture = await createInterruptedAgentFixture();
+  const record = await fixture.storage.get(fixture.agentId);
+  if (!record) {
+    throw new Error("Expected persisted agent record");
+  }
+  // A cancellation acknowledged by the daemon but killed before the resulting
+  // idle transition could be written: the record still reads "running".
+  await fixture.storage.upsert({
+    ...record,
+    cancelRequestedAt: new Date().toISOString(),
+  });
+  const manager = createRecoveryManager(fixture.storage, createTestAgentClient("codex"));
+
+  await recoverInterruptedAgents({
+    agentManager: manager,
+    agentStorage: fixture.storage,
+    logger: createTestLogger(),
+  });
+
+  expect(manager.getAgent(fixture.agentId)).toBeNull();
+  expect(await fixture.storage.get(fixture.agentId)).toMatchObject({
+    lastStatus: "idle",
+    cancelRequestedAt: null,
+  });
+});
+
+test("stops retrying a candidate that never finishes its recovery attempt", async () => {
+  const fixture = await createInterruptedAgentFixture();
+  const delegate = createTestAgentClient("codex");
+  // Simulates a candidate that takes the daemon down mid-recovery: the failure
+  // path never runs, so the record keeps its "running" status every boot.
+  const crashingClient: AgentClient = {
+    provider: delegate.provider,
+    capabilities: delegate.capabilities,
+    createSession: delegate.createSession.bind(delegate),
+    resumeSession: async () => {
+      throw new Error("daemon died mid-recovery");
+    },
+    fetchCatalog: delegate.fetchCatalog.bind(delegate),
+    isAvailable: delegate.isAvailable.bind(delegate),
+  };
+
+  for (let boot = 0; boot < 5; boot += 1) {
+    const manager = createRecoveryManager(fixture.storage, crashingClient);
+    const record = await fixture.storage.get(fixture.agentId);
+    if (!record) {
+      throw new Error("Expected persisted agent record");
+    }
+    // Re-arm the interrupted status the way an unclean shutdown would.
+    await fixture.storage.upsert({ ...record, lastStatus: "running", lastError: null });
+    await recoverInterruptedAgents({
+      agentManager: manager,
+      agentStorage: fixture.storage,
+      logger: createTestLogger(),
+    });
+  }
+
+  expect(await fixture.storage.get(fixture.agentId)).toMatchObject({
+    lastStatus: "error",
+    requiresAttention: true,
+    lastError:
+      "Paseo could not resume this agent after the daemon restart: recovery was attempted 3 times without succeeding",
+  });
+});
+
+test("preserves recovery bookkeeping across a snapshot flush", async () => {
+  const fixture = await createInterruptedAgentFixture();
+  const record = await fixture.storage.get(fixture.agentId);
+  if (!record) {
+    throw new Error("Expected persisted agent record");
+  }
+  await fixture.storage.upsert({
+    ...record,
+    cancelRequestedAt: "2026-01-01T00:00:00.000Z",
+    recoveryAttempts: 2,
+  });
+
+  const manager = createRecoveryManager(fixture.storage, createTestAgentClient("codex"));
+  const agent = await manager.createAgent({ provider: "codex", cwd: fixture.workdir }, undefined, {
+    workspaceId: undefined,
+  });
+  // The projection is built from live agent state, which knows nothing about
+  // these fields; without explicit preservation the flush would drop them.
+  await fixture.storage.applySnapshot({ ...agent, id: fixture.agentId });
+
+  expect(await fixture.storage.get(fixture.agentId)).toMatchObject({
+    cancelRequestedAt: "2026-01-01T00:00:00.000Z",
+    recoveryAttempts: 2,
+  });
+});

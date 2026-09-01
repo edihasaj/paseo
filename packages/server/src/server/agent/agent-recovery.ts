@@ -10,8 +10,19 @@ interface AgentRecoveryDeps {
   logger: Logger;
 }
 
+/**
+ * How many times a single record may be attempted before it is parked as an
+ * error. A record that crashes the daemon mid-recovery keeps its "running"
+ * status, so without a persisted counter it would be retried on every boot.
+ */
+const MAX_RECOVERY_ATTEMPTS = 3;
+
 function isInterrupted(record: StoredAgentRecord): boolean {
   return record.lastStatus === "initializing" || record.lastStatus === "running";
+}
+
+function wasCancelRequested(record: StoredAgentRecord): boolean {
+  return typeof record.cancelRequestedAt === "string";
 }
 
 function recoveryFailureMessage(reason: string): string {
@@ -41,6 +52,31 @@ async function recordRecoveryFailure(input: {
   });
 }
 
+/**
+ * Land an agent whose cancellation was requested but never observed to settle.
+ * It is closed rather than resumed: reviving a run the user explicitly stopped
+ * is the one outcome that creates unwanted work.
+ */
+async function settleCancelledAgent(input: {
+  agentStorage: AgentRecoveryDeps["agentStorage"];
+  agentId: string;
+}): Promise<void> {
+  const record = await input.agentStorage.get(input.agentId);
+  if (!record || record.archivedAt) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  await input.agentStorage.upsert({
+    ...record,
+    updatedAt: now,
+    lastActivityAt: now,
+    lastStatus: "idle",
+    cancelRequestedAt: null,
+    recoveryAttempts: 0,
+  });
+}
+
 async function recoverInterruptedAgent(
   record: StoredAgentRecord,
   deps: AgentRecoveryDeps,
@@ -63,6 +99,7 @@ async function recoverInterruptedAgent(
       broadcastTimeline: true,
       logger: deps.logger,
     });
+    await deps.agentStorage.clearRecoveryAttempts(record.id).catch(() => undefined);
     deps.logger.info(
       { agentId: record.id, provider: record.provider },
       "Recovered interrupted agent",
@@ -93,6 +130,33 @@ export async function recoverInterruptedAgents(deps: AgentRecoveryDeps): Promise
 
   for (const record of interrupted) {
     try {
+      // An unresolved cancellation outranks resumption: the user already said
+      // stop, and the daemon died before the idle transition could be written.
+      if (wasCancelRequested(record)) {
+        await settleCancelledAgent({ agentStorage: deps.agentStorage, agentId: record.id });
+        deps.logger.info(
+          { agentId: record.id, provider: record.provider },
+          "Skipped recovery for an agent cancelled before the daemon restart",
+        );
+        continue;
+      }
+
+      // Burn the attempt before trying, so a record that takes the daemon down
+      // with it is bounded instead of retried on every subsequent boot.
+      const attempts = await deps.agentStorage.recordRecoveryAttempt(record.id);
+      if (attempts > MAX_RECOVERY_ATTEMPTS) {
+        const message = recoveryFailureMessage(
+          `recovery was attempted ${MAX_RECOVERY_ATTEMPTS} times without succeeding`,
+        );
+        await recordRecoveryFailure({
+          agentStorage: deps.agentStorage,
+          agentId: record.id,
+          message,
+        });
+        deps.logger.warn({ agentId: record.id, provider: record.provider, attempts }, message);
+        continue;
+      }
+
       await recoverInterruptedAgent(record, deps);
     } catch (error) {
       deps.logger.error(
