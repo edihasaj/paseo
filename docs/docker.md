@@ -78,6 +78,11 @@ container. It cannot keep an in-flight provider process alive: a replacement sti
 turn. The recovered agent retains its conversation and can continue from the provider's persisted
 session.
 
+Two cases are deliberately not resumed. An agent you cancelled just before the restart stays
+cancelled, even when the container died before the cancellation finished settling, so a replacement
+never revives a run you stopped. An agent that fails recovery three times is parked as an error and
+reported instead of being retried on every subsequent start.
+
 ## Installing Agents
 
 The base image does not preinstall Claude Code, Codex, OpenCode, Copilot, Pi, or
