@@ -38,9 +38,18 @@ nix build .#desktop
 ```
 
 Linux produces the `paseo-desktop` launcher and desktop entry. macOS produces
-`Applications/Paseo.app` plus the `paseo-desktop` launcher. Both use the nixpkgs
+`Applications/Stroll.app` plus the `paseo-desktop` launcher. Both use the nixpkgs
 Electron runtime and the checkout's built daemon, client, and renderer rather
-than downloading a published desktop release.
+than downloading a published desktop release. The macOS bundle, executable,
+scheme, and bundle ID follow `packages/desktop/electron-builder.yml`; the Nix
+launcher remains `paseo-desktop`. The primary CLI binary is `stroll`; `paseo`
+remains available as a compatibility alias.
+
+Nix imports registry dependencies from `package-lock.json` integrity values on
+both platforms. `nix/npm-deps.hash` is the SHA-256 digest of the normalized
+lockfile, not a host-specific Nix store hash. Run `./scripts/update-nix.sh` after
+an intentional lockfile change. CI runs `./scripts/update-nix.sh --check` and
+fails without rewriting either file when the lockfile or digest is stale.
 
 ### PASEO_HOME
 
@@ -565,7 +574,7 @@ npm run cli -- ls -a -g              # List all agents globally
 npm run cli -- ls -a -g --json       # Same, as JSON
 npm run cli -- inspect <id>          # Show detailed agent info
 npm run cli -- logs <id>             # View agent timeline
-npm run cli -- agent open <id>       # Focus an existing agent in Paseo Desktop
+npm run cli -- agent open <id>       # Focus an existing agent in Stroll
 npm run cli -- daemon status         # Check daemon status
 npm run cli -- clone owner/repo --dir ~/workspace # Clone GitHub repo and register project
 ```
@@ -580,8 +589,8 @@ npm run cli -- ls -a --host ssh://user@host
 In an SSH URI, the URL port is the SSH server port. The remote daemon defaults to `127.0.0.1:6767`; use `?daemonPort=7777` to override it. The transport runs non-interactively through the local OpenSSH client and never installs, starts, or configures the remote daemon. User-facing setup and troubleshooting live in [public-docs/connectivity.md](../public-docs/connectivity.md#ssh).
 
 Desktop integrations can focus an existing agent without creating one or
-sending a message. Use `paseo://h/<server-id>/agent/<agent-id>`, or run
-`paseo agent open <agent-id>`. The CLI reads the local daemon's server ID by
+sending a message. Use `stroll://h/<server-id>/agent/<agent-id>`, or run
+`stroll agent open <agent-id>`. The CLI reads the local daemon's server ID by
 default; pass `--server <server-id>` when targeting another server.
 
 ## Agent state

@@ -19,7 +19,7 @@ describe("paseo env contract", () => {
     PASEO_DESKTOP_MANAGED: "1",
     [PASEO_NODE_ENV]: "production",
     PASEO_SUPERVISED: "1",
-    ESBUILD_BINARY_PATH: "/Applications/Paseo.app/Contents/Resources/app.asar.unpacked/esbuild",
+    ESBUILD_BINARY_PATH: "/Applications/Stroll.app/Contents/Resources/app.asar.unpacked/esbuild",
   };
   const runtimeControlEnvKeys = [
     "ELECTRON_RUN_AS_NODE",

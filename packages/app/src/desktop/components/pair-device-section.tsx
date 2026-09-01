@@ -15,6 +15,7 @@ import { useFetchQuery } from "@/data/query";
 import { daemonPairingOfferQueryKey } from "@/data/daemon-pairing";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useHostRuntimeClient, useHostRuntimeSnapshot } from "@/runtime/host-runtime";
+import { useSessionStore } from "@/stores/session-store";
 import type { Theme } from "@/styles/theme";
 import {
   EditingTextInput as TextInput,
@@ -46,7 +47,7 @@ export function PairDeviceSection({ serverId, onClose }: PairDeviceSectionProps)
     runtimeSnapshot?.connectionStatus === "error";
   const { patchConfig } = useDaemonConfig(serverId);
   const [copied, setCopied] = useState(false);
-  const serverFeatures = client?.getLastServerInfoMessage()?.features;
+  const serverFeatures = useSessionStore((state) => state.sessions[serverId]?.serverInfo?.features);
   const supportsPairingRpc = serverFeatures?.daemonStatusRpc === true;
   const canConfigureRelay = supportsPairingRpc && serverFeatures?.relayConfig === true;
 

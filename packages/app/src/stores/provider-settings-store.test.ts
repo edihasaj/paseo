@@ -7,6 +7,7 @@ describe("provider settings store", () => {
       serverId: null,
       provider: null,
       overlayParentLayer: 0,
+      restoreFocusRef: undefined,
       visible: false,
     });
   });
@@ -24,5 +25,21 @@ describe("provider settings store", () => {
       provider: "claude",
     });
     expect(useProviderSettingsStore.getState().overlayParentLayer).toBe(0);
+  });
+
+  it("carries an explicit focus owner without leaking it into later opens", () => {
+    const restoreFocusRef = { current: {} };
+    useProviderSettingsStore.getState().open({
+      serverId: "server-1",
+      provider: "codex",
+      restoreFocusRef,
+    });
+    expect(useProviderSettingsStore.getState().restoreFocusRef).toBe(restoreFocusRef);
+
+    useProviderSettingsStore.getState().open({
+      serverId: "server-1",
+      provider: "claude",
+    });
+    expect(useProviderSettingsStore.getState().restoreFocusRef).toBeUndefined();
   });
 });

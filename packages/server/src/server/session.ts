@@ -1,7 +1,7 @@
 import equal from "fast-deep-equal";
 import { v4 as uuidv4 } from "uuid";
 import { lstat, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
-import { basename, join, resolve, sep } from "path";
+import { basename, resolve, sep } from "path";
 import { homedir } from "node:os";
 import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
 import {
@@ -711,7 +711,7 @@ export class Session {
   private unsubscribePluginChanges: (() => void) | null = null;
   private unsubscribeWorkspaceMutations: (() => void) | null = null;
   private registryMutationQueue: Promise<void> = Promise.resolve();
-  private readonly queueDrainInFlight = new Set<string>();
+  private readonly queueDrainInFlight = new Map<string, Promise<void>>();
   private projectUpdateQueue: Promise<void> = Promise.resolve();
   private isCleanedUp = false;
   private viewedTimelineAgentIds = new Set<string>();
@@ -6035,7 +6035,11 @@ export class Session {
       return;
     }
 
-    const cwd = join(this.paseoHome, "chats", uuidv4());
+    // Keep the path passed to mkdir identical to the path persisted by workspace
+    // provisioning. On Windows, provisioning resolves root-relative inputs onto
+    // the current drive; resolving here prevents the two consumers from seeing
+    // different spellings of the same chat directory.
+    const cwd = resolve(this.paseoHome, "chats", uuidv4());
     try {
       await this.filesystem.createDirectory(cwd);
     } catch (error) {
@@ -7609,9 +7613,9 @@ export class Session {
   }
 
   private async drainAgentQueue(agentId: string): Promise<void> {
-    if (this.queueDrainInFlight.has(agentId)) return;
-    this.queueDrainInFlight.add(agentId);
-    try {
+    const existing = this.queueDrainInFlight.get(agentId);
+    if (existing) return existing;
+    const drain = (async () => {
       const queued = await this.agentStorage.queueStore.take(agentId);
       if (!queued) return;
       try {
@@ -7628,9 +7632,17 @@ export class Session {
         await this.agentStorage.queueStore.restoreFront(queued);
         this.sessionLogger.warn({ err: error, agentId }, "Failed to drain queued agent prompt");
       }
-    } finally {
-      this.queueDrainInFlight.delete(agentId);
-    }
+    })()
+      .catch((error) => {
+        this.sessionLogger.warn({ err: error, agentId }, "Failed to read queued agent prompt");
+      })
+      .finally(() => {
+        if (this.queueDrainInFlight.get(agentId) === drain) {
+          this.queueDrainInFlight.delete(agentId);
+        }
+      });
+    this.queueDrainInFlight.set(agentId, drain);
+    return drain;
   }
 
   private async handleAgentForkContextRequest(
@@ -7994,6 +8006,7 @@ export class Session {
     }
     this.unsubscribeAgentQueueUpdates?.();
     this.unsubscribeAgentQueueUpdates = null;
+    await Promise.all(this.queueDrainInFlight.values());
     this.unsubscribeWorkspaceServiceUpdates?.();
     this.unsubscribeWorkspaceServiceUpdates = null;
     this.providerCatalogSession.dispose();

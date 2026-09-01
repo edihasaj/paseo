@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { relative as relativePath } from "node:path";
 import test from "node:test";
 
@@ -10,6 +10,24 @@ const nixWorkflowPath = new URL(".github/workflows/nix.yml", repoRoot);
 const filtersPath = new URL(".github/ci-paths.yml", repoRoot);
 const serverTsconfigPath = new URL("packages/server/tsconfig.server.json", repoRoot);
 const desktopPackagePath = new URL("packages/desktop/package.json", repoRoot);
+const desktopBuilderPath = new URL("packages/desktop/electron-builder.yml", repoRoot);
+const nixDesktopPackagePath = new URL("nix/desktop-package.nix", repoRoot);
+const nixPackagePath = new URL("nix/package.nix", repoRoot);
+const lockfilePath = new URL("package-lock.json", repoRoot);
+const traceDaemonPath = new URL("scripts/trace-daemon.mjs", repoRoot);
+const packagedWebDaemonPath = new URL(
+  "packages/app/e2e/support/helpers/packaged-web-daemon.ts",
+  repoRoot,
+);
+const sidebarHelpSpecPath = new URL("packages/app/e2e/browser/sidebar-help.spec.ts", repoRoot);
+const releaseConsumerPaths = [
+  "packages/app/src/desktop/updates/desktop-updates.ts",
+  "packages/cli/src/commands/onboard.ts",
+  "packages/website/src/components/site-footer.tsx",
+  "packages/website/src/downloads.tsx",
+  "packages/website/src/latest-release.ts",
+  "packages/website/src/routes/download.tsx",
+];
 
 const gatedCiJobs = new Map([
   ["format", { name: "format", contract: "format" }],
@@ -127,6 +145,57 @@ test("focused contracts stay inside existing required checks", () => {
   assert.match(desktop, /npm run test --workspace=@getpaseo\/desktop/);
   assert.ok(!jobs.has("desktop-browser-bridge"));
   assert.ok(!jobs.has("playwright-desktop"));
+});
+
+test("required PR surfaces keep their hosted commands and complete shard matrix", () => {
+  const jobs = jobBlocks(readFileSync(ciWorkflowPath, "utf8"));
+  const lint = jobs.get("lint")?.join("\n") ?? "";
+  const typecheck = jobs.get("typecheck")?.join("\n") ?? "";
+  const app = jobs.get("app-tests")?.join("\n") ?? "";
+  const firstPlaywright = jobs.get("playwright-1")?.join("\n") ?? "";
+
+  assert.match(lint, /run: npm run lint/);
+  assert.match(typecheck, /run: npm run build:server/);
+  assert.match(typecheck, /run: npm run typecheck/);
+  assert.match(app, /run: npm run build:app-deps/);
+  assert.match(app, /run: npm run test --workspace=@getpaseo\/app/);
+
+  assert.match(firstPlaywright, /steps: &playwright_test_steps/);
+  assert.match(firstPlaywright, /run: npm run build:server/);
+  assert.match(
+    firstPlaywright,
+    /run: npm run test:e2e --workspace=@getpaseo\/app -- --shard=\$\{\{ env\.PLAYWRIGHT_SHARD \}\}/,
+  );
+
+  for (let shard = 1; shard <= 4; shard += 1) {
+    const job = jobs.get(`playwright-${shard}`)?.join("\n") ?? "";
+    assert.match(job, new RegExp(`PLAYWRIGHT_SHARD: "${shard}/4"`));
+    assert.match(job, new RegExp(`PLAYWRIGHT_ARTIFACT: "${shard}"`));
+    if (shard > 1) assert.match(job, /steps: \*playwright_test_steps/);
+  }
+});
+
+test("Docker pull requests build the source tree for both published architectures", () => {
+  const source = readFileSync(dockerWorkflowPath, "utf8");
+  const trigger = source.split("jobs:", 1)[0];
+  const jobs = jobBlocks(source);
+  const build = jobs.get("build")?.join("\n") ?? "";
+
+  assert.match(trigger, /^\s+pull_request:\s*$/m);
+  for (const changedInput of [
+    '      - "package-lock.json"',
+    '      - "scripts/**"',
+    '      - "packages/app/**"',
+    '      - "packages/cli/**"',
+  ]) {
+    assert.match(trigger, new RegExp(changedInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(source, /^\s+PLATFORMS: linux\/amd64,linux\/arm64$/m);
+  assert.match(build, /uses: docker\/build-push-action@v7/);
+  assert.match(build, /^\s+context: \.$/m);
+  assert.match(build, /^\s+file: docker\/base\/Dockerfile$/m);
+  assert.match(build, /^\s+platforms: \$\{\{ env\.PLATFORMS \}\}$/m);
+  assert.match(build, /^\s+push: false$/m);
 });
 
 test("server builds exclude test utilities at every domain depth", () => {
@@ -256,5 +325,100 @@ test("non-required Docker and Nix workflows avoid runners with workflow path fil
     const trigger = source.split("jobs:", 1)[0];
     assert.match(trigger, /^\s+paths:\s*$/m);
     assert.doesNotMatch(source, /dorny\/paths-filter/);
+  }
+});
+
+test("Nix builds verify one shared dependency input before platform builds", () => {
+  const workflow = readFileSync(nixWorkflowPath, "utf8");
+  const jobs = jobBlocks(workflow);
+  const nixPackage = readFileSync(nixPackagePath, "utf8");
+  const nixDesktopPackage = readFileSync(nixDesktopPackagePath, "utf8");
+
+  const linuxJob = jobs.get("build")?.join("\n");
+  assert.ok(linuxJob, "missing Nix build job");
+  const nodeIndex = linuxJob.indexOf("uses: actions/setup-node@v4");
+  const verifyIndex = linuxJob.indexOf("run: ./scripts/update-nix.sh --check");
+  const linuxBuildIndex = linuxJob.indexOf("run: nix build");
+  assert.ok(nodeIndex >= 0, "build does not provision Node for the Nix input check");
+  assert.ok(verifyIndex > nodeIndex, "build verifies the Nix input before provisioning Node");
+  assert.ok(linuxBuildIndex > verifyIndex, "build runs before verifying the Nix dependency input");
+
+  const darwinJob = jobs.get("build-desktop-darwin")?.join("\n");
+  assert.ok(darwinJob, "missing Darwin Nix build job");
+  assert.match(darwinJob, /run: nix build \.#desktop/);
+  assert.doesNotMatch(darwinJob, /actions\/setup-node|update-nix\.sh/);
+
+  assert.equal(workflow.match(/run: \.\/scripts\/update-nix\.sh --check/g)?.length, 1);
+  assert.doesNotMatch(workflow, /run: \.\/scripts\/update-nix\.sh\s*(?:\n|$)/);
+
+  assert.match(nixPackage, /builtins\.hashFile "sha256" \.\.\/package-lock\.json/);
+  assert.match(nixPackage, /npmDeps = importNpmLock \{/);
+  assert.match(nixPackage, /package = rootPackage/);
+  assert.match(nixPackage, /inherit packageLock/);
+  assert.match(nixPackage, /npmRoot = \.\/\.\.;/);
+  assert.match(nixPackage, /npmConfigHook = importNpmLock\.npmConfigHook/);
+  assert.doesNotMatch(nixPackage, /inherit npmDepsHash/);
+  assert.match(nixDesktopPackage, /inherit \(paseo\) npmDeps/);
+  assert.match(nixDesktopPackage, /npmConfigHook = importNpmLock\.npmConfigHook/);
+});
+
+test("hosted tooling follows the CLI package's declared executable and compatibility alias", () => {
+  const cliPackage = JSON.parse(
+    readFileSync(new URL("packages/cli/package.json", repoRoot), "utf8"),
+  );
+  const lockfile = JSON.parse(readFileSync(lockfilePath, "utf8"));
+  const traceDaemon = readFileSync(traceDaemonPath, "utf8");
+  const packagedWebDaemon = readFileSync(packagedWebDaemonPath, "utf8");
+  const knipConfig = JSON.parse(readFileSync(new URL("knip.json", repoRoot), "utf8"));
+  const nixPackage = readFileSync(nixPackagePath, "utf8");
+  const nixWorkflow = readFileSync(nixWorkflowPath, "utf8");
+  assert.deepEqual(cliPackage.bin, {
+    paseo: "bin/stroll",
+    stroll: "bin/stroll",
+  });
+  assert.deepEqual(lockfile.packages["packages/cli"].bin, cliPackage.bin);
+  assert.match(traceDaemon, /"packages\/cli\/bin\/stroll"/);
+  assert.doesNotMatch(traceDaemon, /"packages\/cli\/bin\/paseo"/);
+  assert.ok(existsSync(new URL("packages/cli/bin/stroll", repoRoot)));
+  assert.match(packagedWebDaemon, /node_modules\/\.bin\/stroll/);
+  assert.doesNotMatch(packagedWebDaemon, /node_modules\/\.bin\/paseo/);
+  assert.ok(knipConfig.workspaces["packages/cli"].entry.includes("bin/stroll"));
+  assert.match(nixPackage, /\$out\/bin\/stroll/);
+  assert.match(nixPackage, /ln -s stroll \$out\/bin\/paseo/);
+  assert.match(nixPackage, /mainProgram = "stroll"/);
+  assert.match(nixWorkflow, /\.\/result\/bin\/stroll daemon status/);
+  assert.match(nixWorkflow, /test -x \.\/result\/bin\/paseo/);
+});
+
+test("Nix Darwin packaging follows the existing Electron application identity", () => {
+  const desktopBuilder = readFileSync(desktopBuilderPath, "utf8");
+  const nixDesktopPackage = readFileSync(nixDesktopPackagePath, "utf8");
+  const nixWorkflow = readFileSync(nixWorkflowPath, "utf8");
+  const sidebarHelpSpec = readFileSync(sidebarHelpSpecPath, "utf8");
+
+  assert.match(desktopBuilder, /^appId: com\.edihasaj\.stroll\.desktop$/m);
+  assert.match(desktopBuilder, /^productName: Stroll$/m);
+  assert.match(desktopBuilder, /^executableName: Stroll$/m);
+  assert.match(desktopBuilder, /^\s+- stroll$/m);
+  assert.match(sidebarHelpSpec, /const APP_VERSION = \/\^Stroll\\s\*/);
+  assert.match(nixDesktopPackage, /Applications\/Stroll\.app\/Contents\/MacOS\/Stroll/);
+  assert.match(nixDesktopPackage, /EXPO_DEV_URL "stroll:\/\/app\/"/);
+  assert.match(nixWorkflow, /Applications\/Stroll\.app/);
+  assert.match(nixWorkflow, /com\.edihasaj\.stroll\.desktop/);
+});
+
+test("Stroll release consumers follow the desktop publisher", () => {
+  const desktopBuilder = readFileSync(desktopBuilderPath, "utf8");
+  const owner = /^\s+owner: (\S+)$/m.exec(desktopBuilder)?.[1];
+  const repository = /^\s+repo: (\S+)$/m.exec(desktopBuilder)?.[1];
+  assert.equal(`${owner}/${repository}`, "edihasaj/paseo");
+
+  for (const consumerPath of releaseConsumerPaths) {
+    const source = readFileSync(new URL(consumerPath, repoRoot), "utf8");
+    assert.match(source, /edihasaj\/paseo/, `${consumerPath} does not use the desktop publisher`);
+    assert.doesNotMatch(
+      source,
+      /(?:github:getpaseo\/paseo|getpaseo\/paseo\/(?:releases|v\$\{version\}))/,
+    );
   }
 });

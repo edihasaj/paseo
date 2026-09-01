@@ -4,46 +4,46 @@ import path from "node:path";
 import { spawnProcess } from "@getpaseo/server";
 import { buildAgentDeepLink, type AgentDeepLinkTarget } from "@getpaseo/protocol/agent-deep-link";
 
+interface DesktopAppCandidateInput {
+  platform: NodeJS.Platform;
+  homeDirectory: string;
+  localAppData?: string;
+}
+
+export function desktopAppCandidates(input: DesktopAppCandidateInput): string[] {
+  if (input.platform === "darwin") {
+    return [
+      "/Applications/Stroll.app",
+      path.posix.join(input.homeDirectory, "Applications", "Stroll.app"),
+    ];
+  }
+
+  if (input.platform === "linux") {
+    return [
+      "/usr/bin/Stroll",
+      "/opt/Stroll/Stroll",
+      path.posix.join(input.homeDirectory, "Applications", "Stroll.AppImage"),
+    ];
+  }
+
+  if (input.platform === "win32" && input.localAppData) {
+    return [path.win32.join(input.localAppData, "Programs", "Stroll", "Stroll.exe")];
+  }
+
+  return [];
+}
+
 function findDesktopApp(): string | null {
-  if (process.platform === "darwin") {
-    const candidates = [
-      "/Applications/Paseo.app",
-      path.join(homedir(), "Applications", "Paseo.app"),
-    ];
+  const candidates = desktopAppCandidates({
+    platform: process.platform,
+    homeDirectory: homedir(),
+    ...(process.env.LOCALAPPDATA ? { localAppData: process.env.LOCALAPPDATA } : {}),
+  });
 
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) {
-        return candidate;
-      }
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
     }
-
-    return null;
-  }
-
-  if (process.platform === "linux") {
-    const candidates = [
-      "/usr/bin/Paseo",
-      "/opt/Paseo/Paseo",
-      path.join(homedir(), "Applications", "Paseo.AppImage"),
-    ];
-
-    for (const candidate of candidates) {
-      if (existsSync(candidate)) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
-  if (process.platform === "win32") {
-    const localAppData = process.env.LOCALAPPDATA;
-    if (!localAppData) {
-      return null;
-    }
-
-    const candidate = path.join(localAppData, "Programs", "Paseo", "Paseo.exe");
-    return existsSync(candidate) ? candidate : null;
   }
 
   return null;
@@ -70,13 +70,13 @@ function spawnDetached(command: string, args: string[]): void {
 
 function launchDesktop(args: string[]): void {
   if (process.env.PASEO_DESKTOP_CLI === "1") {
-    throw new Error("Cannot open Paseo Desktop while running in desktop CLI passthrough mode.");
+    throw new Error("Cannot open Stroll while running in desktop CLI passthrough mode.");
   }
 
   const desktopApp = findDesktopApp();
   if (!desktopApp) {
     throw new Error(
-      "Paseo desktop app not found. Install it from https://github.com/getpaseo/paseo/releases",
+      "Stroll desktop app not found. Install it from https://github.com/edihasaj/paseo/releases",
     );
   }
 

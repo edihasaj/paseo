@@ -4,13 +4,15 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseOpenProjectPathFromArgv } from "./open-project-routing";
 
+const PACKAGED_EXECUTABLE = "/Applications/Stroll.app/Contents/MacOS/Stroll";
+
 describe("open-project-routing", () => {
   it("returns a bare absolute path argument", () => {
     const projectPath = mkdtempSync(path.join(tmpdir(), "paseo-open-project-"));
 
     expect(
       parseOpenProjectPathFromArgv({
-        argv: ["/Applications/Paseo.app/Contents/MacOS/Paseo", projectPath],
+        argv: [PACKAGED_EXECUTABLE, projectPath],
         isDefaultApp: false,
       }),
     ).toBe(projectPath);
@@ -21,12 +23,7 @@ describe("open-project-routing", () => {
 
     expect(
       parseOpenProjectPathFromArgv({
-        argv: [
-          "/Applications/Paseo.app/Contents/MacOS/Paseo",
-          "--allow-file-access-from-files",
-          "--no-sandbox",
-          projectPath,
-        ],
+        argv: [PACKAGED_EXECUTABLE, "--allow-file-access-from-files", "--no-sandbox", projectPath],
         isDefaultApp: false,
       }),
     ).toBe(projectPath);
@@ -39,14 +36,14 @@ describe("open-project-routing", () => {
 
     expect(
       parseOpenProjectPathFromArgv({
-        argv: ["/Applications/Paseo.app/Contents/MacOS/Paseo", "--version", flagLikeDirectory],
+        argv: [PACKAGED_EXECUTABLE, "--version", flagLikeDirectory],
         isDefaultApp: false,
       }),
     ).toBe(flagLikeDirectory);
 
     expect(
       parseOpenProjectPathFromArgv({
-        argv: ["/Applications/Paseo.app/Contents/MacOS/Paseo", "--version"],
+        argv: [PACKAGED_EXECUTABLE, "--version"],
         isDefaultApp: false,
       }),
     ).toBeNull();
@@ -57,7 +54,7 @@ describe("open-project-routing", () => {
 
     expect(
       parseOpenProjectPathFromArgv({
-        argv: ["/Applications/Paseo.app/Contents/MacOS/Paseo", "--open-project", projectPath],
+        argv: [PACKAGED_EXECUTABLE, "--open-project", projectPath],
         isDefaultApp: false,
       }),
     ).toBe(projectPath);

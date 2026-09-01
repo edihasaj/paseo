@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useReducer, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import {
   FlatList,
@@ -83,13 +91,17 @@ function ProviderSettingsAction({
   serverId: string | null;
 }) {
   const overlayParentLayer = useCurrentOverlayLayer();
+  const restoreFocusRef = useRef<View>(null);
   const handlePress = useCallback(() => {
     if (!serverId) return;
-    useProviderSettingsStore.getState().open({ serverId, provider, overlayParentLayer });
+    useProviderSettingsStore
+      .getState()
+      .open({ serverId, provider, overlayParentLayer, restoreFocusRef });
   }, [overlayParentLayer, provider, serverId]);
 
   return (
     <Pressable
+      ref={restoreFocusRef}
       onPress={handlePress}
       disabled={!serverId}
       hitSlop={8}

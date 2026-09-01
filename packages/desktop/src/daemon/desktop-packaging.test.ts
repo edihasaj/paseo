@@ -110,6 +110,22 @@ describe("desktop packaging", () => {
     expect(config).toContain("- stroll");
   });
 
+  it("uses the published application identity throughout packaging and smoke tests", () => {
+    const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
+    const afterPack = readFileSync(join(packageRoot, "scripts", "after-pack.js"), "utf8");
+    const afterSign = readFileSync(join(packageRoot, "scripts", "after-sign.js"), "utf8");
+    const packagedSmoke = readFileSync(join(packageRoot, "e2e", "packaged-app-smoke.js"), "utf8");
+
+    expect(config).toContain("productName: Stroll");
+    expect(config).toContain("executableName: Stroll");
+    expect(afterPack).toContain('const EXECUTABLE_NAME = "Stroll"');
+    expect(afterSign).toContain('const EXECUTABLE_NAME = "Stroll"');
+    expect(packagedSmoke).toContain('const EXECUTABLE_NAME = "Stroll"');
+    expect(packagedSmoke).toContain('"Resources", "bin", "stroll"');
+    expect(packagedSmoke).toContain('"resources", "bin", "stroll"');
+    expect(packagedSmoke).toContain('startsWith("stroll://app/")');
+  });
+
   // electron-builder packs production dependencies declared in package.json into
   // app.asar. Runtime code in runtime-paths.ts and bin/stroll dynamically resolves
   // these workspace packages by string, so static analysis (TypeScript, Knip) cannot

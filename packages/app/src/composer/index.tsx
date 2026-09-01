@@ -110,6 +110,7 @@ import { submitAgentInput } from "@/composer/submit";
 import { createMessageSubmissionWriter } from "@/composer/submission/writer";
 import { ComposerKeyboardScopeProvider, useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { useAppSettings } from "@/hooks/use-settings";
+import { useAgentQueuePrompts } from "@/agent-queue/use-agent-queue";
 import { RenderProfile } from "@/utils/render-profiler";
 import { AfterPaintPublication } from "@/composer/after-paint-publication";
 import { isWeb, isNative } from "@/constants/platform";
@@ -164,7 +165,7 @@ const composerImageAttachmentPersister: Pick<
   persistFromFileUri: persistAttachmentFromFileUri,
 };
 
-type QueuedMessage = QueuedComposerMessage;
+type QueuedMessage = QueuedComposerMessage & { owner: "daemon" | "renderer" };
 
 type AttachmentListUpdater =
   | UserComposerAttachment[]
@@ -734,22 +735,26 @@ function QueuedMessageRow({
           <ThemedCornerDownRight size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
           <Text style={styles.queueSteerText}>{steerLabel}</Text>
         </Pressable>
-        <Pressable
-          onPress={handleEdit}
-          style={styles.queueActionButton}
-          accessibilityLabel={editLabel}
-          accessibilityRole="button"
-        >
-          <ThemedPencil size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
-        </Pressable>
-        <Pressable
-          onPress={handleRemove}
-          style={styles.queueActionButton}
-          accessibilityLabel={removeLabel}
-          accessibilityRole="button"
-        >
-          <ThemedTrash2 size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
-        </Pressable>
+        {item.owner === "renderer" ? (
+          <>
+            <Pressable
+              onPress={handleEdit}
+              style={styles.queueActionButton}
+              accessibilityLabel={editLabel}
+              accessibilityRole="button"
+            >
+              <ThemedPencil size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
+            </Pressable>
+            <Pressable
+              onPress={handleRemove}
+              style={styles.queueActionButton}
+              accessibilityLabel={removeLabel}
+              accessibilityRole="button"
+            >
+              <ThemedTrash2 size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
+            </Pressable>
+          </>
+        ) : null}
       </View>
     </View>
   );
@@ -1260,13 +1265,36 @@ function ComposerContentImpl({
 
   const agentState = useSessionStore(useShallow(buildAgentStateSelector(serverId, agentId)));
 
+  const supportsAgentQueue = useSessionStore(
+    (state) => state.sessions[serverId]?.serverInfo?.features?.agentQueue === true,
+  );
+  const daemonQueuedPrompts = useAgentQueuePrompts({ serverId, agentId });
+
   const queuedMessagesRaw = useSessionStore((state) =>
     state.sessions[serverId]?.queuedMessages?.get(agentId),
   );
-  const queuedMessages = queuedMessagesRaw ?? EMPTY_ARRAY;
+  const queuedMessages = useMemo<QueuedMessage[]>(() => {
+    const rendererMessages: QueuedMessage[] = (queuedMessagesRaw ?? EMPTY_ARRAY).map((message) => ({
+      id: message.id,
+      text: message.text,
+      attachments: message.attachments,
+      owner: "renderer",
+    }));
+    if (!supportsAgentQueue) return rendererMessages;
+    return [
+      ...daemonQueuedPrompts.map(
+        (prompt): QueuedMessage => ({
+          id: prompt.id,
+          text: prompt.text,
+          attachments: [],
+          owner: "daemon",
+        }),
+      ),
+      ...rendererMessages,
+    ];
+  }, [daemonQueuedPrompts, queuedMessagesRaw, supportsAgentQueue]);
 
   const setQueuedMessages = useSessionStore((state) => state.setQueuedMessages);
-
   const isCompactFormFactor = useIsCompactFormFactor();
   const isCompactLayout = resolveCompactLayout(isCompactLayoutOverride, isCompactFormFactor);
   const isDesktopWebBreakpoint = resolveIsDesktopWebBreakpoint(isCompactFormFactor);
@@ -1293,9 +1321,6 @@ function ComposerContentImpl({
   const checkoutStatusQuery = useCheckoutStatusQuery({ serverId, cwd });
   const supportsForgeSearch = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.forgeSearch === true,
-  );
-  const supportsAgentQueue = useSessionStore(
-    (state) => state.sessions[serverId]?.serverInfo?.features?.agentQueue === true,
   );
   const forgeAutoAttach = useComposerForgeAutoAttach({
     text: userInput,
@@ -1578,8 +1603,8 @@ function ComposerContentImpl({
             attachments: wireAttachments.attachments,
           });
           if (response.error) throw new Error(response.error);
-          replaceUserInput("");
-          setSelectedAttachments([]);
+          // agent.queue.update is authoritative. Applying correlated response
+          // snapshots here lets a slower response replace a newer pushed queue.
           resetSuppression();
           clearSentAttachments(queuedAttachments);
           return;
@@ -1923,6 +1948,17 @@ function ComposerContentImpl({
 
   const handleSendQueuedNow = useCallback(
     async (id: string) => {
+      if (daemonQueuedPrompts.some((prompt) => prompt.id === id)) {
+        if (!client) return;
+        try {
+          const response = await client.sendAgentQueuePromptNow(agentId, id);
+          if (response.error) throw new Error(response.error);
+          // The queue update pushed by the daemon owns renderer state.
+        } catch (error) {
+          setSendError(error instanceof Error ? error.message : t("composer.errors.failedToSend"));
+        }
+        return;
+      }
       if (!sendAgentMessageRef.current && !onSubmitMessageRef.current) return;
       // Reuse the regular send path; server-side send atomically interrupts any active run.
       const result = await sendQueuedComposerMessageNow({
@@ -1937,7 +1973,7 @@ function ComposerContentImpl({
         setSendError(result.errorMessage);
       }
     },
-    [agentId, queueWriter, submitMessage, t],
+    [agentId, client, daemonQueuedPrompts, queueWriter, submitMessage, t],
   );
 
   const handleRemoveQueuedMessage = useCallback(
@@ -2612,6 +2648,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     minHeight: 32,
+    paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
     gap: theme.spacing[2],
   },

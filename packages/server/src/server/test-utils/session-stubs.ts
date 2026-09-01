@@ -53,6 +53,7 @@ export function createAgentQueueStoreStub(): Record<string, unknown> {
     take: async () => null,
     restoreFront: async () => {},
     clear: async () => {},
+    flush: async () => {},
     subscribe: () => () => {},
   };
 }
