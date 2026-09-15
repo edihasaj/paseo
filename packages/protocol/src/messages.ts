@@ -3235,6 +3235,7 @@ export const SessionEventSubscriptionSchema = z.enum([
   "script_status_update",
   "workspace_setup_progress",
   "agent.provider_subagents.update",
+  "agent.queue.update",
   "terminal_attention_required",
   "status.server_info",
   "status.daemon_config_changed",
