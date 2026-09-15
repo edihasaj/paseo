@@ -2188,6 +2188,7 @@ export const ru: TranslationResources = {
         options: {
           light: "Светлая",
           dark: "Тёмная",
+          paper: "Paper",
           zinc: "Цинк",
           midnight: "Полночь",
           claude: "Claude",

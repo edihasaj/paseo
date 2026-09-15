@@ -2169,6 +2169,7 @@ export const ja: TranslationResources = {
         options: {
           light: "ライト",
           dark: "ダーク",
+          paper: "Paper",
           zinc: "Zinc",
           midnight: "Midnight",
           claude: "Claude",

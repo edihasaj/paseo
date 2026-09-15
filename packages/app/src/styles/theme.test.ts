@@ -5,6 +5,7 @@ import {
   FONT_SIZE,
   getNextThemePreference,
   lightTheme,
+  paperTheme,
   THEME_OPTIONS,
 } from "./theme";
 
@@ -30,6 +31,7 @@ describe("Theme catalog", () => {
       "light",
       "dark",
       "auto",
+      "paper",
       "zinc",
       "midnight",
       "claude",
@@ -37,6 +39,7 @@ describe("Theme catalog", () => {
       "pureBlack",
     ]);
     expect(getNextThemePreference("dark")).toBe("auto");
+    expect(getNextThemePreference("auto")).toBe("paper");
     expect(getNextThemePreference("pureBlack")).toBe("light");
   });
 });
@@ -64,6 +67,33 @@ describe("Pure black theme", () => {
   it("keeps ANSI black output readable on its zero-luminance terminal background", () => {
     expect(darkPureBlackTheme.colors.terminal.black).toBe("#595959");
     expect(darkPureBlackTheme.colors.terminal.brightBlack).toBe("#8a8a8a");
+  });
+});
+
+describe("Paper theme", () => {
+  it("keeps a pure white main surface with warm off-white secondary surfaces", () => {
+    expect(paperTheme.colors.surface0).toBe("#ffffff");
+    expect(paperTheme.colors.surface1).toBe("#f7f7f5");
+    expect(paperTheme.colors.surfaceSidebar).toBe("#f1f1ef");
+  });
+
+  it("keeps Paseo's muted green accent", () => {
+    expect(paperTheme.colors.accent).toBe(lightTheme.colors.accent);
+    expect(paperTheme.colors.accentBright).toBe(lightTheme.colors.accentBright);
+  });
+
+  it("keeps the shared destructive red", () => {
+    expect(paperTheme.colors.destructive).toBe(lightTheme.colors.destructive);
+  });
+
+  it("washes the user message bubble in a cool/green tint distinct from surface2", () => {
+    expect(paperTheme.colors.secondary).toBe("#eef6f3");
+    expect(paperTheme.colors.secondary).not.toBe(paperTheme.colors.surface2);
+  });
+
+  it("generates status and status-dot tokens the same way as every other light theme", () => {
+    expect(paperTheme.colors.statusSuccess).toBe(lightTheme.colors.statusSuccess);
+    expect(paperTheme.colors.statusDotRunning).toBe(lightTheme.colors.statusDotRunning);
   });
 });
 

@@ -2272,6 +2272,7 @@ export const en = {
         options: {
           light: "Light",
           dark: "Dark",
+          paper: "Paper",
           zinc: "Zinc",
           midnight: "Midnight",
           claude: "Claude",
