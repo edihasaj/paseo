@@ -311,28 +311,34 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
   };
 }
 
+// Light — warm off-white chrome (sidebar, cards, dividers) around a pure white working
+// surface, with hairline borders instead of shadows to separate them. The user's own chat
+// bubble washes in a light cool/green tint instead of following the shared secondary surface.
 const lightSemanticColors = buildLightSemanticColors({
   surface0: "#ffffff",
-  surface1: "#fafafa",
-  surface2: "#f4f4f5",
-  surface3: "#e4e4e7",
-  surface4: "#d4d4d8",
-  surfaceDiffEmpty: "#f6f6f6",
-  surfaceSidebar: "#f4f4f5",
-  foreground: "#1a1a1e",
-  foregroundMuted: "#71717a",
-  foregroundExtraMuted: "#a1a1aa",
-  border: "#e4e4e7",
-  borderAccent: "#ececf1",
+  surface1: "#f7f7f5",
+  surface2: "#f1f1ef",
+  surface3: "#e6e6e3",
+  surface4: "#d8d8d4",
+  surfaceDiffEmpty: "#f5f5f2",
+  surfaceSidebar: "#f1f1ef",
+  foreground: "#1c1c1c",
+  foregroundMuted: "#6b6b6b",
+  foregroundExtraMuted: "#9c9c94",
+  border: "#e6e6e3",
+  borderAccent: "#ececea",
   accent: "#20744A",
   accentBright: "#239956",
   accentForeground: "#ffffff",
-  primary: "#18181b",
-  primaryForeground: "#fafafa",
+  primary: "#1c1c1c",
+  primaryForeground: "#f7f7f5",
   destructive: "#b04138",
-  terminalBlack: "#1a1a1e",
-  terminalBrightBlack: "#3f3f46",
-  ring: "#18181b",
+  terminalBlack: "#1c1c1c",
+  terminalBrightBlack: "#4a4a45",
+  ring: "#1c1c1c",
+  // Cool/green wash for the user's own message bubble, distinct from the warm-neutral
+  // surface2 that the rest of the secondary chrome shares.
+  secondary: "#eef6f3",
 });
 
 // ---------------------------------------------------------------------------
@@ -797,38 +803,6 @@ export function buildLightTheme(semanticColors: ReturnType<typeof buildLightSema
 
 export const lightTheme = buildLightTheme(lightSemanticColors);
 
-// Paper — a warm-white variant of Light. The main surface stays pure white; sidebar, cards,
-// and dividers drop the cool zinc undertone for a warmer off-white, and the user's own chat
-// bubble washes in a light cool/green tint instead of following the shared secondary surface.
-const paperLightColors = buildLightSemanticColors({
-  surface0: "#ffffff",
-  surface1: "#f7f7f5",
-  surface2: "#f1f1ef",
-  surface3: "#e6e6e3",
-  surface4: "#d8d8d4",
-  surfaceDiffEmpty: "#f5f5f2",
-  surfaceSidebar: "#f1f1ef",
-  foreground: "#1c1c1c",
-  foregroundMuted: "#6b6b6b",
-  foregroundExtraMuted: "#9c9c94",
-  border: "#e6e6e3",
-  borderAccent: "#ececea",
-  accent: "#20744A",
-  accentBright: "#239956",
-  accentForeground: "#ffffff",
-  primary: "#1c1c1c",
-  primaryForeground: "#f7f7f5",
-  destructive: "#b04138",
-  terminalBlack: "#1c1c1c",
-  terminalBrightBlack: "#4a4a45",
-  ring: "#1c1c1c",
-  // Cool/green wash for the user's own message bubble, distinct from the warm-neutral
-  // surface2 that the rest of the secondary chrome shares.
-  secondary: "#eef6f3",
-});
-
-export const paperTheme = buildLightTheme(paperLightColors);
-
 // Keep compatibility with existing code
 export const theme = darkTheme;
 
@@ -848,13 +822,6 @@ export const THEME_OPTIONS = [
     swatch: "#2D8B62",
   },
   { name: "auto", group: "primary" },
-  {
-    name: "paper",
-    group: "variant",
-    unistylesName: "lightPaper",
-    theme: paperTheme,
-    swatch: "#f7f7f5",
-  },
   {
     name: "zinc",
     group: "variant",

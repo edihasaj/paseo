@@ -210,7 +210,10 @@ const DEFAULT_STORED_APP_SETTINGS = {
 
 const StoredAppSettingsSchema = z
   .looseObject({
-    theme: ThemePreferenceSchema.catch(DEFAULT_THEME_PREFERENCE),
+    // COMPAT(paperTheme): "paper" folded into Light in v0.8.1, remove after 2027-03-15.
+    theme: ThemePreferenceSchema.or(z.literal("paper").transform(() => "light" as const)).catch(
+      DEFAULT_THEME_PREFERENCE,
+    ),
     pluginThemeId: z.string().nullable().catch(null),
     language: z
       .enum(["system", "ar", "en", "es", "fr", "ja", "ko", "pt-BR", "ru", "zh-CN"])
