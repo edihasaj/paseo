@@ -989,6 +989,20 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     const observer = new ResizeObserver(() => {
       const nextGeometry = getObservedViewportGeometry(scrollContainer);
       if (pendingResumeGeometryCheckRef.current) {
+        if (scrollContainer.scrollTop !== lastKnownScrollTopRef.current) {
+          scrollContainer.scrollTop = lastKnownScrollTopRef.current;
+        }
+        // The browser clamps a scrollTop assignment to the container's *current*
+        // scrollHeight. A virtualized history that has not finished measuring can
+        // still report a shorter height on an early notification here, which
+        // silently truncates the restore above — and growing the content
+        // afterward does not retroactively lift that clamp. Reading the
+        // assignment back catches exactly that: keep waiting, without reporting
+        // or clearing the pending flag, until a notification lands where it held
+        // (getpaseo/paseo#3271).
+        if (scrollContainer.scrollTop !== lastKnownScrollTopRef.current) {
+          return;
+        }
         pendingResumeGeometryCheckRef.current = false;
         reportReadingPosition();
         const previousGeometry = lastObservedViewportGeometryRef.current;
