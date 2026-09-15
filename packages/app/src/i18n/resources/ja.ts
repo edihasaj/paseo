@@ -1810,6 +1810,7 @@ export const ja: TranslationResources = {
     pillLabelNeedsInputOne: "1 件が入力待ち",
     pillLabelNeedsInputMany: "{{count}} 件が入力待ち",
     pillLabelReadyToReview: "{{count}} 件レビュー待ち",
+    runningCount: "{{count}} running",
     detachAction: "{{label}}を切り離す",
     detachTooltip: "サブエージェントを切り離す",
     archiveAction: "{{label}}をアーカイブ",

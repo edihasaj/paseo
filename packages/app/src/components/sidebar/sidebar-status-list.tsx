@@ -556,12 +556,15 @@ function StatusGroupHeader({
         testID={`sidebar-status-group-${group.key}`}
       >
         <View style={styles.statusGroupRowLeft}>
+          <View style={styles.statusGroupChevronSlot}>
+            {collapsed ? (
+              <ThemedChevronRight size={12} uniProps={foregroundMutedColorMapping} />
+            ) : (
+              <ThemedChevronDown size={12} uniProps={foregroundMutedColorMapping} />
+            )}
+          </View>
           <View style={styles.statusGroupLeadingVisualSlot}>
-            <StatusGroupLeadingVisual
-              leading={group.leading}
-              collapsed={collapsed}
-              showChevron={isHovered}
-            />
+            <GroupLeadingIcon leading={group.leading} />
           </View>
           <View style={styles.statusGroupTitleGroup}>
             <Text style={styles.statusGroupTitle} numberOfLines={1}>
@@ -572,24 +575,6 @@ function StatusGroupHeader({
       </Pressable>
     </View>
   );
-}
-
-function StatusGroupLeadingVisual({
-  leading,
-  collapsed,
-  showChevron,
-}: {
-  leading: SidebarWorkspaceGroup["leading"];
-  collapsed: boolean;
-  showChevron: boolean;
-}) {
-  if (!showChevron) {
-    return <GroupLeadingIcon leading={leading} />;
-  }
-  if (collapsed) {
-    return <ThemedChevronRight size={14} uniProps={foregroundMutedColorMapping} />;
-  }
-  return <ThemedChevronDown size={14} uniProps={foregroundMutedColorMapping} />;
 }
 
 function GroupLeadingIcon({ leading }: { leading: SidebarWorkspaceGroup["leading"] }) {
@@ -1212,9 +1197,16 @@ const styles = StyleSheet.create((theme) => ({
   statusGroupRowLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
     flex: 1,
     minWidth: 0,
+  },
+  statusGroupChevronSlot: {
+    width: 12,
+    height: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   statusGroupLeadingVisualSlot: {
     position: "relative",
@@ -1233,8 +1225,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   statusGroupTitle: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
-    fontWeight: "400",
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+    textTransform: "uppercase",
+    letterSpacing: theme.letterSpacing.wide,
     minWidth: 0,
     flexShrink: 1,
   },

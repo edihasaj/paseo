@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight } from "lucide-react-native";
 import { Pressable, Text } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { useIsCompactFormFactor } from "@/constants/layout";
-import { isNative } from "@/constants/platform";
 import type { Theme } from "@/styles/theme";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
@@ -21,7 +19,6 @@ export function PinnedSectionHeader({
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
-  const isCompact = useIsCompactFormFactor();
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
   const Chevron = collapsed ? ThemedChevronRight : ThemedChevronDown;
 
@@ -33,21 +30,15 @@ export function PinnedSectionHeader({
       style={styles.header}
       testID="sidebar-pinned-section-header"
     >
-      {({ hovered }) => (
-        <>
-          <Text style={styles.title}>{t("sidebar.pinned.title")}</Text>
-          {hovered || isNative || isCompact ? (
-            <Chevron size={12} uniProps={foregroundMutedColorMapping} />
-          ) : null}
-        </>
-      )}
+      <Chevron size={12} uniProps={foregroundMutedColorMapping} />
+      <Text style={styles.title}>{t("sidebar.pinned.title")}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
   header: {
-    minHeight: 36,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
@@ -59,6 +50,8 @@ const styles = StyleSheet.create((theme) => ({
   title: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.medium,
+    textTransform: "uppercase",
+    letterSpacing: theme.letterSpacing.wide,
   },
 }));

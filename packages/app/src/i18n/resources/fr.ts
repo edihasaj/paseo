@@ -1843,6 +1843,7 @@ export const fr: TranslationResources = {
     pillLabelNeedsInputOne: "1 attend une réponse",
     pillLabelNeedsInputMany: "{{count}} attendent une réponse",
     pillLabelReadyToReview: "{{count}} à relire",
+    runningCount: "{{count}} running",
     detachAction: "Detacher {{label}}",
     detachTooltip: "Detacher le sous-agent",
     archiveAction: "Archiver{{label}}",

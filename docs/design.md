@@ -1,6 +1,6 @@
 # Design
 
-Tokens — every color, font size, weight, spacing step, radius, icon size — live in `packages/app/src/styles/theme.ts`.
+Tokens — every color, font size, weight, spacing step, radius, icon size, letter spacing — live in `packages/app/src/styles/theme.ts`.
 
 ---
 
@@ -39,6 +39,8 @@ Weight has three tiers, applied by role:
 - **Content** uses `fontWeight.normal`. This applies to settings rows (`packages/app/src/styles/settings.ts`), sidebar primary list-item titles (`packages/app/src/components/sidebar-workspace-list.tsx:2680-2686`, `packages/app/src/components/agent-list.tsx:572-578`), `<Button>` text (`packages/app/src/components/ui/button.tsx:80-84`), `<StatusBadge>` text (`packages/app/src/components/ui/status-badge.tsx:56-60`), and `<SidebarCallout>` titles (`packages/app/src/components/sidebar-callout.tsx:175-180`).
 
 The rule, condensed: text that _names_ a surface or a group is `medium`. Text that lives _inside_ a surface or a group is `normal`. Top-of-screen titles are `<ScreenTitle>`, which is lighter still.
+
+The sidebar's group headers — the SESSIONS header, and the collapsible label and status groups below it (`packages/app/src/components/sidebar/sidebar-status-list.tsx`, `packages/app/src/components/sidebar/pinned-section-header.tsx`) — carry `medium` further: `fontSize.sm` (the smallest ramp step), `textTransform: "uppercase"`, and `letterSpacing.wide`, the one letter-spacing token in the theme. Reserve that combination for these small-caps sidebar group labels; a regular structural label stays sentence case. Each collapsible group leads with a permanent `ChevronDown`/`ChevronRight` toggle rather than swapping an icon in on hover — the affordance for "this collapses" should not itself be hidden behind hover.
 
 Foreground is for the thing being acted on: row titles, section headings, the selected sidebar item. `foregroundMuted` is for context: hints, descriptions, secondary metadata, idle sidebar items, placeholders, status text.
 
@@ -226,6 +228,10 @@ A row may carry both a chevron and a kebab when both navigation and row-level ac
 Switches and segmented controls also sit in the trailing slot. A row that both navigates and toggles is a `<Pressable>` with a `<Switch>` in the trailing slot — the switch calls `event.stopPropagation()` so the row press does not fire (`packages/app/src/screens/settings/providers-section.tsx:92-132`). Sidebar items that hold a status dot, a count, and a kebab follow the same rule (`packages/app/src/components/sidebar-workspace-list.tsx`).
 
 Selected state on rows in a desktop list+detail uses `surfaceSidebarHover` as the background (`packages/app/src/screens/projects-screen.tsx`). Selected state on rows in the sidebar list uses `surface2` (`packages/app/src/components/agent-list.tsx:563-571`).
+
+The subagent tree (`packages/app/src/subagents/track.tsx`) indents rows by depth with a 1px `border`-colored left rail rather than nested containers, so the rail reads as one continuous line down the tree instead of a box per level. A collapsed parent's trailing slot reports what its hidden children are doing rather than going quiet: an `N running` `<StatusBadge variant="success">` while anything under it is active, a plain muted count once nothing is. Row action icons (`Play`/`Square`/`Archive`/`Unlink`) follow the standard hover rule (`isHovered || isNative || isCompact`).
+
+The sidebar's top brand row and footer identity row (`packages/app/src/components/left-sidebar.tsx`, `packages/app/src/components/sidebar/sidebar-brand-row.tsx`) are two triggers for the same `<HostPicker>` menu, not two host switchers — converge on the shared component and vary only the trigger's presentation (logo + host name at the top, a 24px identity-color circle at the foot).
 
 ---
 

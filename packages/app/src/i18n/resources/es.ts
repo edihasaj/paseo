@@ -1839,6 +1839,7 @@ export const es: TranslationResources = {
     pillLabelNeedsInputOne: "1 necesita datos",
     pillLabelNeedsInputMany: "{{count}} necesitan datos",
     pillLabelReadyToReview: "{{count}} para revisar",
+    runningCount: "{{count}} running",
     detachAction: "Separar {{label}}",
     detachTooltip: "Separar subagente",
     archiveAction: "Archivo{{label}}",

@@ -1823,6 +1823,7 @@ export const ru: TranslationResources = {
     pillLabelNeedsInputOne: "1 ожидает ввода",
     pillLabelNeedsInputMany: "{{count}} ожидают ввода",
     pillLabelReadyToReview: "{{count}} на проверку",
+    runningCount: "{{count}} running",
     detachAction: "Отсоединить {{label}}",
     detachTooltip: "Отсоединить субагента",
     archiveAction: "Архивировать {{label}}",

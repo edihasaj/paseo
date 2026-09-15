@@ -5,6 +5,7 @@ import { Archive, ChevronDown, ChevronRight, Play, Square, Unlink } from "lucide
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getProviderIcon } from "@/components/provider-icons";
 import { ComposerTrackActions, ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
@@ -387,6 +388,18 @@ function SubagentsTrackRow({
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
   const presentation = useMemo(() => buildRowPresentation(row, serverId), [row, serverId]);
+  // A collapsed parent hides its children's rows, so it reports what is behind them: how many
+  // are still running, or — nothing running — how many there are. Computed from the full
+  // subtree rather than `node.children.length` so a collapsed grandparent still counts what a
+  // collapsed child is itself hiding.
+  const descendantRows = useMemo(
+    () => (hasChildren ? collectSubagentRows(node.children) : []),
+    [hasChildren, node.children],
+  );
+  const runningDescendantCount = useMemo(
+    () => descendantRows.filter((descendant) => !isFinishedRow(descendant)).length,
+    [descendantRows],
+  );
   const displayLabel =
     presentation.titleState === "loading" ? t("common.states.loading") : presentation.label;
   const handlePress = useCallback(() => {
@@ -442,6 +455,13 @@ function SubagentsTrackRow({
             {presentation.subtitle}
           </Text>
         ) : null}
+        {hasChildren && !expanded ? (
+          <CollapsedSubagentCount
+            rowId={row.id}
+            runningCount={runningDescendantCount}
+            totalCount={descendantRows.length}
+          />
+        ) : null}
         {row.kind === "paseo" ? (
           <SubagentRowActions
             rowId={row.id}
@@ -458,6 +478,7 @@ function SubagentsTrackRow({
       actionsAlwaysVisible,
       displayLabel,
       depth,
+      descendantRows.length,
       expanded,
       handleArchivePress,
       handleDetachPress,
@@ -469,6 +490,7 @@ function SubagentsTrackRow({
       row.kind,
       row.id,
       row.status,
+      runningDescendantCount,
     ],
   );
 
@@ -480,6 +502,29 @@ function SubagentsTrackRow({
     >
       {renderRow}
     </ComposerTrackRow>
+  );
+}
+
+/** What a collapsed parent reports about the children its chevron is hiding. */
+function CollapsedSubagentCount({
+  rowId,
+  runningCount,
+  totalCount,
+}: {
+  rowId: string;
+  runningCount: number;
+  totalCount: number;
+}): ReactElement {
+  const { t } = useTranslation();
+  if (runningCount > 0) {
+    return (
+      <StatusBadge variant="success" label={t("subagents.runningCount", { count: runningCount })} />
+    );
+  }
+  return (
+    <Text style={styles.rowTrailing} testID={`subagents-track-count-${rowId}`}>
+      {totalCount}
+    </Text>
   );
 }
 

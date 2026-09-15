@@ -7,10 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { View, type PressableStateCallbackType } from "react-native";
+import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   Captions,
+  ChevronDown,
   Circle,
   CircleCheck,
   CircleDashed,
@@ -62,6 +63,7 @@ import { WorkspaceLabelManagerModal } from "@/workspace-labels/manager-modal";
 const mutedIconMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
 const ThemedSettings2 = withUnistyles(Settings2);
+const ThemedChevronDown = withUnistyles(ChevronDown);
 /** CI's mark: the subject of the checks row, and the shape the icon-only option leaves behind. */
 const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedCircle = withUnistyles(Circle);
@@ -294,7 +296,11 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
           accessibilityLabel={t("sidebar.display.trigger")}
           testID="sidebar-display-preferences-menu"
         >
-          <ThemedSettings2 size={14} uniProps={mutedIconMapping} />
+          <ThemedSettings2 size={12} uniProps={mutedIconMapping} />
+          <Text style={styles.triggerLabel} numberOfLines={1}>
+            {t(GROUPING_LABEL_KEYS[preferences.grouping])}
+          </Text>
+          <ThemedChevronDown size={12} uniProps={mutedIconMapping} />
         </MenuTrigger>
         <MenuSurface
           align="end"
@@ -757,14 +763,21 @@ function HostFilterItem({
 
 const styles = StyleSheet.create((theme) => ({
   trigger: {
-    width: 28,
-    height: 28,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing[1],
+    height: 24,
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
   },
   triggerHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    backgroundColor: theme.colors.surface3,
+  },
+  triggerLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.normal,
   },
   // The icon sits in a 14pt menu slot, so the fallback initial is sized down to match rather
   // than reusing the sidebar row's 16pt figure.

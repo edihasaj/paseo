@@ -604,6 +604,13 @@ export const FONT_WEIGHT = {
   bold: "bold" as const,
 } as const;
 
+// Tracking for small uppercase structural labels (sidebar section headers). One value: a
+// label this small reads as a run-together blob without it, and there is exactly one place
+// in the app small enough to need it.
+export const LETTER_SPACING = {
+  wide: 0.4,
+} as const;
+
 export const BORDER_RADIUS = {
   none: 0,
   sm: 2,
@@ -667,6 +674,7 @@ interface CommonTheme {
   lineHeight: Record<keyof typeof LINE_HEIGHT, number>;
   iconSize: typeof ICON_SIZE;
   fontWeight: typeof FONT_WEIGHT;
+  letterSpacing: typeof LETTER_SPACING;
   borderRadius: typeof BORDER_RADIUS;
   borderWidth: typeof BORDER_WIDTH;
   opacity: typeof OPACITY;
@@ -685,6 +693,7 @@ const commonTheme: CommonTheme = {
   lineHeight: LINE_HEIGHT,
   iconSize: ICON_SIZE,
   fontWeight: FONT_WEIGHT,
+  letterSpacing: LETTER_SPACING,
   borderRadius: BORDER_RADIUS,
   borderWidth: BORDER_WIDTH,
   opacity: OPACITY,

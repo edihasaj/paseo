@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { FolderPlus, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
+import { FolderPlus, GitBranch, Import, Settings, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -23,7 +23,9 @@ import {
 } from "@/components/sidebar-resize-handle-layout";
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
+import { SidebarBrandRow } from "@/components/sidebar/sidebar-brand-row";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
+import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -42,8 +44,8 @@ import { RetainedPanelActivity } from "@/components/retained-panel";
 import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels";
 import type { SidebarProjectIconTarget } from "@/utils/sidebar-project-row-model";
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
-import { useHosts } from "@/runtime/host-runtime";
 import { usePanelStore } from "@/stores/panel-store";
+import { deriveIdentityColorName, identityColor } from "@/styles/identity-colors";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
@@ -51,6 +53,7 @@ import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-rout
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
+import { useActiveHostSummary } from "./sidebar/use-active-host-summary";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
@@ -313,76 +316,19 @@ function FooterIconButton({
   );
 }
 
-function footerAddProjectButtonStyle({
-  hovered,
-}: PressableStateCallbackType & { hovered?: boolean }) {
-  return [styles.footerAddProjectButton, Boolean(hovered) && styles.footerAddProjectButtonHovered];
-}
-
-function FooterAddProjectButton({
-  onPress,
-  label,
-  shortcutKeys,
-  theme,
-}: {
-  onPress: () => void;
-  label: string;
-  shortcutKeys: ReturnType<typeof useShortcutKeys>;
-  theme: SidebarTheme;
-}) {
-  return (
-    <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>
-        <Pressable
-          style={footerAddProjectButtonStyle}
-          testID="sidebar-add-project"
-          nativeID="sidebar-add-project"
-          accessible
-          accessibilityLabel={label}
-          accessibilityRole="button"
-          onPress={onPress}
-        >
-          {({ hovered }) => {
-            const isHovered = Boolean(hovered);
-            return (
-              <>
-                <FolderPlus
-                  size={theme.iconSize.sm}
-                  color={isHovered ? theme.colors.foreground : theme.colors.foregroundMuted}
-                />
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.footerAddProjectLabel,
-                    isHovered && styles.footerAddProjectLabelHovered,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </>
-            );
-          }}
-        </Pressable>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
-        <IconTooltipContent label={label} shortcutKeys={shortcutKeys} />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function SidebarHostPicker({
-  theme,
-  label,
+/**
+ * The footer's leading identity: a 24px identity-color circle carrying the active host's
+ * initial, its name, and the same host picker the brand row opens — a different trigger for
+ * the same menu, not a second implementation of host switching.
+ */
+function SidebarFooterIdentity({
   onAddHost,
   onOpenHostSettings,
 }: {
-  theme: SidebarTheme;
-  label: string;
   onAddHost: () => void;
   onOpenHostSettings: (serverId: string) => void;
 }) {
-  const hosts = useHosts();
+  const { hosts, serverId, label } = useActiveHostSummary();
   const triggerRef = useRef<View | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -394,6 +340,13 @@ function SidebarHostPicker({
   );
 
   const handleOpen = useCallback(() => setIsOpen(true), []);
+  const triggerStyle = useCallback(
+    ({ hovered = false }: PressableStateCallbackType & { hovered?: boolean }) => [
+      styles.footerIdentityTrigger,
+      hovered && styles.footerIdentityTriggerHovered,
+    ],
+    [],
+  );
 
   return (
     <HostPicker
@@ -413,15 +366,28 @@ function SidebarHostPicker({
       addHostTestID="sidebar-host-add"
       hostOptionTestID={sidebarHostOptionTestID}
     >
-      <FooterIconButton
-        buttonRef={triggerRef}
+      <Pressable
+        ref={triggerRef}
+        style={triggerStyle}
         onPress={handleOpen}
         testID="sidebar-hosts-trigger"
-        label={label}
-        icon={Server}
-        iconSize={theme.iconSize.sm}
-        theme={theme}
-      />
+        nativeID="sidebar-hosts-trigger"
+        accessible
+        accessibilityRole="button"
+        accessibilityLabel={label}
+      >
+        <View
+          style={[
+            styles.footerIdentityAvatar,
+            { backgroundColor: identityColor(deriveIdentityColorName(serverId ?? label)) },
+          ]}
+        >
+          <Text style={styles.footerIdentityInitial}>{label.charAt(0).toUpperCase()}</Text>
+        </View>
+        <Text style={styles.footerIdentityLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
     </HostPicker>
   );
 }
@@ -443,7 +409,6 @@ function IconTooltipContent({
 
 function SidebarFooter({
   theme,
-  handleOpenProject,
   handleImportSession,
   handleSettings,
   labels,
@@ -451,7 +416,6 @@ function SidebarFooter({
   handleOpenHostSettings,
 }: {
   theme: SidebarTheme;
-  handleOpenProject: () => void;
   handleImportSession: () => void;
   handleSettings: () => void;
   labels: {
@@ -464,24 +428,15 @@ function SidebarFooter({
   handleAddHost: () => void;
   handleOpenHostSettings: (serverId: string) => void;
 }) {
-  const newAgentKeys = useShortcutKeys("new-agent");
   const settingsKeys = useShortcutKeys("toggle-settings");
 
   return (
     <View style={styles.sidebarFooter}>
-      <FooterAddProjectButton
-        onPress={handleOpenProject}
-        label={labels.addProject}
-        shortcutKeys={newAgentKeys}
-        theme={theme}
+      <SidebarFooterIdentity
+        onAddHost={handleAddHost}
+        onOpenHostSettings={handleOpenHostSettings}
       />
       <View style={styles.footerIconRow}>
-        <SidebarHostPicker
-          theme={theme}
-          label={labels.hosts}
-          onAddHost={handleAddHost}
-          onOpenHostSettings={handleOpenHostSettings}
-        />
         <FooterIconButton
           onPress={handleImportSession}
           testID="sidebar-import-session"
@@ -556,6 +511,7 @@ function MobileSidebar({
       <View style={styles.sidebarContent} pointerEvents="auto">
         <WindowChromeSafeArea placement="below" />
         <SidebarNavRows style={styles.sidebarHeaderGroup} onBeforeNavigate={closeSidebar} />
+        <SidebarSeparator />
         <WindowChromeSafeArea placement="inline" style={styles.mobileCloseButtonRow}>
           <Pressable
             style={styles.mobileCloseButton}
@@ -604,7 +560,6 @@ function MobileSidebar({
 
         <SidebarFooter
           theme={theme}
-          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -751,7 +706,9 @@ function DesktopSidebar({
           ) : (
             <TitlebarDragRegion />
           )}
+          <SidebarBrandRow onAddHost={handleAddHost} onOpenHostSettings={handleOpenHostSettings} />
           <SidebarNavRows style={sidebarHeaderGroupStyle} />
+          <SidebarSeparator />
         </View>
 
         {isInitialLoad && !hasActiveHostFilter ? (
@@ -781,7 +738,6 @@ function DesktopSidebar({
 
         <SidebarFooter
           theme={theme}
-          handleOpenProject={handleOpenProject}
           handleImportSession={handleImportSession}
           handleSettings={handleSettings}
           labels={labels}
@@ -841,8 +797,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[2],
     gap: 2,
     paddingBottom: theme.spacing[1.5],
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   sidebarHeaderGroupBelowChrome: {
     paddingTop: 0,
@@ -863,7 +817,9 @@ const styles = StyleSheet.create((theme) => ({
   workspacesSectionTitle: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.medium,
+    textTransform: "uppercase",
+    letterSpacing: theme.letterSpacing.wide,
   },
   workspacesSectionActions: {
     flexDirection: "row",
@@ -932,40 +888,50 @@ const styles = StyleSheet.create((theme) => ({
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
   footerIconRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
     flexShrink: 0,
   },
-  footerAddProjectButton: {
+  footerIdentityTrigger: {
     minWidth: 0,
-    minHeight: 32,
-    flex: 1,
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    paddingVertical: theme.spacing[1.5],
-    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1],
     borderRadius: theme.borderRadius.lg,
   },
-  footerAddProjectButtonHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+  footerIdentityTriggerHovered: {
+    backgroundColor: theme.colors.interactionHighlight,
   },
-  footerAddProjectLabel: {
+  footerIdentityAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: theme.borderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  footerIdentityInitial: {
+    color: "#ffffff",
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  footerIdentityLabel: {
     minWidth: 0,
     flexShrink: 1,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
-    color: theme.colors.foregroundMuted,
-  },
-  footerAddProjectLabelHovered: {
     color: theme.colors.foreground,
   },
   footerIconButton: {

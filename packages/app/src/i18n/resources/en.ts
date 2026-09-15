@@ -1818,6 +1818,7 @@ export const en = {
     pillLabelNeedsInputOne: "1 needs input",
     pillLabelNeedsInputMany: "{{count}} need input",
     pillLabelReadyToReview: "{{count}} ready to review",
+    runningCount: "{{count}} running",
     detachAction: "Detach {{label}}",
     detachTooltip: "Detach subagent",
     archiveAction: "Archive {{label}}",
