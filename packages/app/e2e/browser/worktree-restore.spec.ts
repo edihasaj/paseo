@@ -28,6 +28,7 @@ import { connectSeedClient } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { createTempGitRepo } from "../support/helpers/workspace";
 import {
+  expectWorkspaceHeaderTitle,
   waitForSidebarHydration,
   waitForWorkspaceInSidebar,
 } from "../support/helpers/workspace-ui";
@@ -260,9 +261,7 @@ test.describe("Worktree restore", () => {
       to: switchedBranch,
     });
     await expectWorkspaceBranch(page, switchedBranch);
-    await expect(
-      page.getByTestId("workspace-header-title").filter({ visible: true }).first(),
-    ).toHaveText(switchedBranch, { timeout: 30_000 });
+    await expectWorkspaceHeaderTitle(page, switchedBranch);
   });
 
   test("restores the workspace before explicitly unarchiving each selected agent", async ({

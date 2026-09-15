@@ -76,19 +76,49 @@ export async function waitForWorkspaceInSidebar(
   });
 }
 
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Match a workspace header title whether or not the project name is folded in. Desktop
+ * converges the project and title into one breadcrumb ("project / title") inside the title
+ * element when they differ (WorkspaceHeaderBreadcrumb in workspace-screen.tsx); mobile keeps
+ * them in separate title/subtitle elements, and a title that equals its project also renders
+ * alone on desktop. Pass `subtitle` when it is known, to also accept the combined form.
+ */
+export async function expectWorkspaceHeaderTitle(
+  page: Page,
+  title: string,
+  options?: { subtitle?: string; timeout?: number },
+): Promise<void> {
+  const titleLocator = page.getByTestId("workspace-header-title").filter({ visible: true });
+  const timeout = options?.timeout ?? 30_000;
+  const escapedTitle = escapeForRegExp(title);
+  const alternatives = [escapedTitle];
+  if (options?.subtitle !== undefined) {
+    alternatives.push(escapeForRegExp(`${options.subtitle} / ${title}`));
+  } else {
+    alternatives.push(`.+ / ${escapedTitle}`);
+  }
+  await expect(titleLocator.first()).toHaveText(new RegExp(`^(?:${alternatives.join("|")})$`), {
+    timeout,
+  });
+}
+
 export async function expectWorkspaceHeader(
   page: Page,
   input: { title: string; subtitle: string },
 ): Promise<void> {
-  const titleLocator = page.getByTestId("workspace-header-title").filter({ visible: true });
   const subtitleLocator = page.getByTestId("workspace-header-subtitle").filter({ visible: true });
 
-  await expect(titleLocator.first()).toHaveText(input.title, {
-    timeout: 30_000,
-  });
-  await expect(subtitleLocator.first()).toHaveText(input.subtitle, {
-    timeout: 30_000,
-  });
+  await expectWorkspaceHeaderTitle(page, input.title, { subtitle: input.subtitle });
+
+  if ((await subtitleLocator.count()) > 0) {
+    await expect(subtitleLocator.first()).toHaveText(input.subtitle, {
+      timeout: 30_000,
+    });
+  }
 }
 
 export async function expectReconnectingToastVisible(

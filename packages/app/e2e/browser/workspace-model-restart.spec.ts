@@ -418,12 +418,18 @@ test.describe("Workspace model restart regressions", () => {
     try {
       await seedBrowserForDaemon(page, { serverId, port: daemon.port });
 
+      // recoverInterruptedAgents (agent-recovery.ts) marks a "running" agent with no persistence
+      // handle as an unrecoverable attention error rather than assuming it is still alive on this
+      // daemon — see agent-recovery.test.ts "marks an interrupted agent without a persistence
+      // handle as unrecoverable". This fixture's legacy record has persistence: null, so recovery
+      // now surfaces it as "error"; the workspace/tab ownership assertions below are what this
+      // regression test actually guards.
       await expect
         .poll(() => fetchLegacyAgent(client))
         .toMatchObject({
           id: LEGACY_AGENT_ID,
           workspaceId: seeded.workspaceA,
-          status: "running",
+          status: "error",
         });
 
       await page.goto(buildHostWorkspaceRoute(serverId, seeded.workspaceA));
