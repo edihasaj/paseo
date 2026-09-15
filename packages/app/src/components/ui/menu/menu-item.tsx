@@ -18,7 +18,7 @@ import { Check, CheckCircle } from "lucide-react-native";
 import { AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { Theme } from "@/styles/theme";
+import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { MenuDepthProvider, useMenuContext } from "./menu-context";
 import { MENU_ITEM_HEIGHT } from "./menu-geometry";
 
@@ -288,7 +288,9 @@ export function MenuItem({
 
   const trailingContent =
     trailing ??
-    (!showSelectedCheck && selected ? <ThemedCheck size={16} uniProps={mutedMapping} /> : null);
+    (!showSelectedCheck && selected ? (
+      <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMapping} />
+    ) : null);
 
   const handleItemPress = useCallback(() => {
     if (isDisabled) return;
@@ -348,7 +350,7 @@ export function MenuItem({
     >
       {showSelectedCheck ? (
         <View style={styles.checkSlot}>
-          {selected ? <ThemedCheck size={16} uniProps={foregroundMapping} /> : null}
+          {selected ? <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMapping} /> : null}
         </View>
       ) : null}
       {leadingContent ? <View style={styles.leadingSlot}>{leadingContent}</View> : null}
@@ -392,7 +394,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   labelText: {
     fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
     color: theme.colors.foregroundMuted,
+    textTransform: "uppercase",
+    letterSpacing: theme.letterSpacing.wide,
   },
   // `border` sits between surface1 and surface2, which put it within a hair of the hover fill and
   // made separators vanish against a hovered row. `borderAccent` is the colour the menu surface
@@ -478,14 +483,14 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: 0,
   },
   itemHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   itemPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   // The row you are inside, not the value you chose. A chosen value is marked by its check.
   itemActive: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   itemDisabled: {
     opacity: 0.5,

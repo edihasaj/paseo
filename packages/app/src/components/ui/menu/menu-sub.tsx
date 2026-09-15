@@ -119,7 +119,7 @@ function MenuSubTrailing({
         </Text>
       ) : null}
       {indicator ? <View style={styles.indicator} testID="menu-sub-indicator" /> : null}
-      <ThemedChevronRight size={14} uniProps={mutedIconMapping} />
+      <ThemedChevronRight size={12} uniProps={mutedIconMapping} />
     </View>
   );
 }
