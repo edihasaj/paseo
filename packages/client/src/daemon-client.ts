@@ -3434,6 +3434,18 @@ export class DaemonClient {
     });
   }
 
+  async deleteAgentQueuePrompt(
+    agentId: string,
+    promptId: string,
+    requestId?: string,
+  ): Promise<Extract<SessionOutboundMessage, { type: "agent.queue.delete.response" }>["payload"]> {
+    return this.sendCorrelatedSessionRequest({
+      requestId,
+      message: { type: "agent.queue.delete.request", agentId, promptId },
+      responseType: "agent.queue.delete.response",
+    });
+  }
+
   observeTimeline(
     agentIds: string[],
     options?: { signal?: AbortSignal },

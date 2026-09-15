@@ -8823,6 +8823,7 @@ function sessionEventCategory(message: SessionOutboundMessage): SessionEventSubs
     case "script_status_update":
     case "workspace_setup_progress":
     case "agent.provider_subagents.update":
+    case "agent.queue.update":
     case "terminal_attention_required":
     case "activity_log":
     case "hub.execution.agent.update":

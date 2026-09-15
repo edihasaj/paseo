@@ -525,6 +525,7 @@ function SessionProviderInternal({ children, serverId, client }: SessionProvider
         "agent_permission_request",
         "agent_permission_resolved",
         "agent.provider_subagents.update",
+        "agent.queue.update",
         "checkout_status_update",
         "workspace_setup_progress",
         "status.server_info",

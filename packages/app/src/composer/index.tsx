@@ -48,6 +48,7 @@ import { ContextWindowMeter } from "@/components/context-window-meter";
 import { KeyboardTranslateView } from "@/components/keyboard-translate-view";
 import { useImageAttachmentPicker } from "@/hooks/use-image-attachment-picker";
 import { selectAgentTurnPresentation, useSessionStore } from "@/stores/session-store";
+import { useAgentQueuePrompts } from "@/agent-queue/use-agent-queue";
 import { useFilePicker } from "@/hooks/use-file-picker";
 import { useFileDrop } from "@/components/file-drop/use-file-drop";
 import type { DroppedItem } from "@/components/file-drop/types";
@@ -1289,7 +1290,10 @@ function ComposerContentImpl({
   const queuedMessagesRaw = useSessionStore((state) =>
     state.sessions[serverId]?.queuedMessages?.get(agentId),
   );
-  const queuedMessages = queuedMessagesRaw ?? EMPTY_ARRAY;
+  // Daemon-owned queue: the source of truth once the daemon advertises support (see
+  // `supportsAgentQueue` below). The legacy client-local queue above stays as the fallback
+  // for daemons that predate the durable queue store.
+  const agentQueuePrompts = useAgentQueuePrompts({ serverId, agentId });
 
   const setQueuedMessages = useSessionStore((state) => state.setQueuedMessages);
 
@@ -1323,6 +1327,17 @@ function ComposerContentImpl({
   const supportsAgentQueue = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.agentQueue === true,
   );
+  // The row only renders `id`/`text` (see QueuedMessageRow), so the daemon-owned prompt's wire
+  // attachments don't need a lossy conversion into client ComposerAttachment shapes here.
+  const queuedMessages = useMemo<readonly QueuedMessage[]>(() => {
+    if (supportsAgentQueue)
+      return agentQueuePrompts.map((prompt) => ({
+        id: prompt.id,
+        text: prompt.text,
+        attachments: [],
+      }));
+    return queuedMessagesRaw ?? EMPTY_ARRAY;
+  }, [agentQueuePrompts, queuedMessagesRaw, supportsAgentQueue]);
   const forgeAutoAttach = useComposerForgeAutoAttach({
     text: userInput,
     remoteUrl: resolveCheckoutRemoteUrl(checkoutStatusQuery.status),
@@ -1957,6 +1972,15 @@ function ComposerContentImpl({
 
   const handleEditQueuedMessage = useCallback(
     (id: string) => {
+      if (supportsAgentQueue) {
+        const prompt = agentQueuePrompts.find((queued) => queued.id === id);
+        if (!prompt) return;
+        replaceUserInput(prompt.text);
+        // Wire attachments don't round-trip into client ComposerAttachment objects; parity
+        // with the legacy queue's attachment restore is a follow-up, not exercised today.
+        void client?.deleteAgentQueuePrompt(agentId, id);
+        return;
+      }
       const result = editQueuedComposerMessage({
         agentId,
         messageId: id,
@@ -1966,11 +1990,29 @@ function ComposerContentImpl({
       replaceUserInput(result.text);
       setSelectedAttachments(result.attachments);
     },
-    [agentId, queueWriter, replaceUserInput, setSelectedAttachments],
+    [
+      agentId,
+      agentQueuePrompts,
+      client,
+      queueWriter,
+      replaceUserInput,
+      setSelectedAttachments,
+      supportsAgentQueue,
+    ],
   );
 
   const handleSendQueuedNow = useCallback(
     async (id: string) => {
+      if (supportsAgentQueue) {
+        if (!client) return;
+        const result = await client
+          .sendAgentQueuePromptNow(agentId, id)
+          .catch((error: unknown) => ({
+            error: error instanceof Error ? error.message : t("composer.errors.failedToSend"),
+          }));
+        if (result.error) setSendError(result.error);
+        return;
+      }
       if (!sendAgentMessageRef.current && !onSubmitMessageRef.current) return;
       // Reuse the regular send path; server-side send atomically interrupts any active run.
       const result = await sendQueuedComposerMessageNow({
@@ -1985,11 +2027,15 @@ function ComposerContentImpl({
         setSendError(result.errorMessage);
       }
     },
-    [agentId, queueWriter, submitMessage, t],
+    [agentId, client, queueWriter, submitMessage, supportsAgentQueue, t],
   );
 
   const handleRemoveQueuedMessage = useCallback(
     (id: string) => {
+      if (supportsAgentQueue) {
+        void client?.deleteAgentQueuePrompt(agentId, id);
+        return;
+      }
       const removed = removeQueuedComposerMessage({
         agentId,
         messageId: id,
@@ -2002,7 +2048,7 @@ function ComposerContentImpl({
         ),
       );
     },
-    [agentId, queueWriter],
+    [agentId, client, queueWriter, supportsAgentQueue],
   );
 
   const handleQueue = useCallback(
@@ -2685,9 +2731,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
   },
   queueTrack: {
     // Derived from the row box rather than a magic number, so changing the
-    // action button size or row padding keeps showing the same item count.
+    // action button size keeps showing the same item count.
     maxHeight: queueTrackMaxHeight({
-      spacing: theme.spacing[2],
       borderWidth: theme.borderWidth[1],
     }),
   },

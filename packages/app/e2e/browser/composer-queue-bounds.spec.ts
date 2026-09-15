@@ -37,7 +37,7 @@ test("a long queue is bounded and scrolls instead of growing without end", async
     // so assert on the always-rendered row text instead of the button's accessible name.
     await expect(track.getByText(/^queued message \d+$/)).toHaveCount(QUEUED_COUNT);
 
-    const cap = queueTrackMaxHeight({ spacing: 8, borderWidth: 1 });
+    const cap = queueTrackMaxHeight({ borderWidth: 1 });
     const box = await track.boundingBox();
     expect(box).not.toBeNull();
     // Eight rows would exceed the cap if the list still grew freely.
