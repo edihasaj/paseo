@@ -25,7 +25,6 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useShallow } from "zustand/shallow";
 import {
-  Square,
   AudioLines,
   CircleDot,
   FileText,
@@ -1072,7 +1071,6 @@ function resolveContextWindowValues(
 }
 
 interface ComposerCancelButtonProps {
-  buttonIconSize: number;
   cancelButtonStyle: (object | undefined)[];
   handleCancelAgent: () => void;
   isConnected: boolean;
@@ -1081,8 +1079,13 @@ interface ComposerCancelButtonProps {
   t: TFunction;
 }
 
+const cancelRingColorMapping = (theme: Theme) => ({ color: theme.colors.destructive });
+// The rotating ring clears the 32px stop button by 4px on every side.
+const CANCEL_RING_DIAMETER = 40;
+
+// The stop button carries its own running state — a thin arc rotating around the
+// circle — instead of a second spinner elsewhere in the controls row (docs/design.md §16).
 function ComposerCancelButton({
-  buttonIconSize,
   cancelButtonStyle,
   handleCancelAgent,
   isConnected,
@@ -1093,23 +1096,23 @@ function ComposerCancelButton({
   const accessibilityLabel = isCancellingAgent
     ? t("composer.cancel.cancelingAgent")
     : t("composer.cancel.stopAgent");
-  const icon = isCancellingAgent ? (
-    <LoadingSpinner size="small" color="white" />
-  ) : (
-    <Square size={buttonIconSize} color="white" fill="white" />
-  );
   const shortcutNode = agentInterruptKeys ? <Shortcut chord={agentInterruptKeys} /> : null;
   return (
     <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
-      <TooltipTrigger
-        onPress={handleCancelAgent}
-        disabled={!isConnected || isCancellingAgent}
-        accessibilityLabel={accessibilityLabel}
-        accessibilityRole="button"
-        style={cancelButtonStyle}
-      >
-        {icon}
-      </TooltipTrigger>
+      <View style={styles.cancelButtonWrapper}>
+        <View style={styles.cancelRing} pointerEvents="none">
+          <ThemedLoadingSpinner size={CANCEL_RING_DIAMETER} uniProps={cancelRingColorMapping} />
+        </View>
+        <TooltipTrigger
+          onPress={handleCancelAgent}
+          disabled={!isConnected || isCancellingAgent}
+          accessibilityLabel={accessibilityLabel}
+          accessibilityRole="button"
+          style={cancelButtonStyle}
+        >
+          <View style={styles.stopGlyph} />
+        </TooltipTrigger>
+      </View>
       <TooltipContent side="top" align="center" offset={8}>
         <View style={styles.tooltipRow}>
           <Text style={styles.tooltipText}>{t("composer.cancel.interrupt")}</Text>
@@ -2054,7 +2057,6 @@ function ComposerContentImpl({
   const activeActionContent = useMemo(
     () => (
       <ComposerCancelButton
-        buttonIconSize={buttonIconSize}
         cancelButtonStyle={cancelButtonStyle}
         handleCancelAgent={handleCancelAgent}
         isConnected={isConnected}
@@ -2063,15 +2065,7 @@ function ComposerContentImpl({
         t={t}
       />
     ),
-    [
-      agentInterruptKeys,
-      buttonIconSize,
-      cancelButtonStyle,
-      handleCancelAgent,
-      isCancellingAgent,
-      isConnected,
-      t,
-    ],
+    [agentInterruptKeys, cancelButtonStyle, handleCancelAgent, isCancellingAgent, isConnected, t],
   );
 
   const rightContent = useMemo(
@@ -2139,28 +2133,13 @@ function ComposerContentImpl({
       contextWindowMeterGlyphSize,
     ],
   );
-  const runningIndicator = useMemo(
-    () =>
-      isAgentRunning ? (
-        <View testID="composer-running-indicator">
-          <ThemedLoadingSpinner size="small" uniProps={iconForegroundMutedMapping} />
-        </View>
-      ) : null,
-    [isAgentRunning],
-  );
+  // No separate running spinner here: the stop button in `activeActionContent`
+  // carries its own rotating-ring running state (docs/design.md §16).
   const contextWindowSlot = useMemo(
     () => resolveContextWindowPlacement(contextWindowMeter, hasAgent),
     [contextWindowMeter, hasAgent],
   );
-  const beforeVoiceContent = useMemo(
-    () => (
-      <>
-        {runningIndicator}
-        {contextWindowSlot}
-      </>
-    ),
-    [runningIndicator, contextWindowSlot],
-  );
+  const beforeVoiceContent = contextWindowSlot;
 
   const hasGithubAttachment = useMemo(
     () =>
@@ -2626,14 +2605,37 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderTopWidth: theme.borderWidth[1],
     borderTopColor: theme.colors.border,
   },
+  // One 32px circle, matching the send button it replaces in the controls row.
   cancelButton: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.destructive,
     alignItems: "center",
     justifyContent: "center",
+  },
+  cancelButtonWrapper: {
+    width: 32,
+    height: 32,
     marginLeft: theme.spacing[1],
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Centered around the 32px button with 4px clearance on every side.
+  cancelRing: {
+    position: "absolute",
+    width: CANCEL_RING_DIAMETER,
+    height: CANCEL_RING_DIAMETER,
+    top: -(CANCEL_RING_DIAMETER - 32) / 2,
+    left: -(CANCEL_RING_DIAMETER - 32) / 2,
+  },
+  // Drawn solid rather than the lucide outline glyph so the stop state reads
+  // as a filled mark, not a line drawing, inside the destructive circle.
+  stopGlyph: {
+    width: 10,
+    height: 10,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.background,
   },
   rightControls: {
     flexDirection: "row",
@@ -2662,7 +2664,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderColor: theme.colors.palette.green[800],
   },
   iconButtonHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   attachmentTray: {
     flexDirection: "row",

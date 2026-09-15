@@ -1,3 +1,5 @@
+import { ICON_SIZE } from "@/styles/theme";
+
 export type ComposerControlDensity = "full" | "condensed" | "tight";
 
 export interface ComposerControlPresence {
@@ -22,7 +24,7 @@ export const COMPOSER_TOOLBAR_GEOMETRY = {
   controlGap: 4,
   iconLabelGap: 4,
   labelPadding: 8,
-  caretSize: 14,
+  caretSize: 12,
 } as const;
 
 const DENSITY_HYSTERESIS = 12;
@@ -129,6 +131,8 @@ export function resolveComposerControlPresentation(
   };
 }
 
-export function resolveComposerToolbarGlyphSize(platform: "web" | "native"): number {
-  return platform === "native" ? 20 : 16;
+// A quiet leading glyph (`ICON_SIZE.sm`) on both platforms — one size step
+// below the previous 16/20px, matching the 28px ghost pill it sits inside.
+export function resolveComposerToolbarGlyphSize(_platform: "web" | "native"): number {
+  return ICON_SIZE.sm;
 }

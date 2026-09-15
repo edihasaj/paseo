@@ -65,7 +65,7 @@ import {
 } from "@/components/ui/text-input";
 
 const ComposerTextInput = withUnistyles(EditingTextInput, (theme) => ({
-  placeholderTextColor: theme.colors.surface4,
+  placeholderTextColor: theme.colors.foregroundMuted,
 }));
 import {
   resolveSendTooltipLabel,
@@ -369,15 +369,15 @@ function SendButtonContent({
   buttonIconSize: number;
 }) {
   if (isSubmitLoading) {
-    return <ThemedLoadingSpinner size="small" uniProps={iconAccentForegroundMapping} />;
+    return <ThemedLoadingSpinner size="small" uniProps={iconOnForegroundMapping} />;
   }
   if (submitLabel) {
     return <Text style={styles.sendButtonLabel}>{submitLabel}</Text>;
   }
   if (submitIcon === "return") {
-    return <ThemedCornerDownLeft size={buttonIconSize} uniProps={iconAccentForegroundMapping} />;
+    return <ThemedCornerDownLeft size={buttonIconSize} uniProps={iconOnForegroundMapping} />;
   }
-  return <ThemedArrowUp size={buttonIconSize} uniProps={iconAccentForegroundMapping} />;
+  return <ThemedArrowUp size={buttonIconSize} uniProps={iconOnForegroundMapping} />;
 }
 
 interface DesktopKeyPressContext {
@@ -1722,11 +1722,12 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
     const inputWrapperCombinedStyle = useMemo(
       () => [
         styles.inputWrapper,
+        isInputFocused && styles.inputWrapperFocused,
         readOnly && styles.inputWrapperReadOnly,
         inputWrapperStyle,
         { opacity: surfacePresentation.input.opacity },
       ],
-      [inputWrapperStyle, readOnly, surfacePresentation.input.opacity],
+      [inputWrapperStyle, isInputFocused, readOnly, surfacePresentation.input.opacity],
     );
     // `withUnistyles` maps this component's `style` into a `.hash > *` child
     // rule, which ties on specificity with react-native-web's own
@@ -1919,9 +1920,13 @@ const styles = StyleSheet.create((theme: Theme) => ({
     backgroundColor: theme.colors.background,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius["2xl"],
     ...theme.shadow.sm,
-    paddingVertical: {
+    paddingTop: {
+      xs: theme.spacing[2],
+      md: theme.spacing[3],
+    },
+    paddingBottom: {
       xs: theme.spacing[2],
       md: theme.spacing[4],
     },
@@ -1936,6 +1941,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
           transitionTimingFunction: "ease-in-out",
         }
       : {}),
+  },
+  // Focus raises the border to the accent tone only — no glow, no shadow change.
+  inputWrapperFocused: {
+    borderColor: theme.colors.borderAccent,
   },
   // Dotted says "this surface is the same box, but there is nothing to type
   // into it" without swapping the border colour, which reads as an error state.
@@ -2021,28 +2030,31 @@ const styles = StyleSheet.create((theme: Theme) => ({
   voiceButtonRecording: {
     backgroundColor: theme.colors.destructive,
   },
+  // 32px circle, one size step up from the 28px ghost pills either side of it —
+  // the composer's one committed action. Filled foreground with a background-
+  // colour glyph (Codex); dims to opacity[50] instead of recolouring when idle-empty.
   sendButton: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: theme.colors.foreground,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: theme.spacing[1],
   },
   sendButtonLabeled: {
     width: "auto",
-    minWidth: 28,
+    minWidth: 32,
     paddingHorizontal: theme.spacing[3],
     borderRadius: theme.borderRadius.full,
   },
   sendButtonLabel: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,
-    color: theme.colors.accentForeground,
+    color: theme.colors.background,
   },
   iconButtonHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   tooltipRow: {
     flexDirection: "row",
@@ -2079,4 +2091,5 @@ const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 
 const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
-const iconAccentForegroundMapping = (theme: Theme) => ({ color: theme.colors.accentForeground });
+// Icon colour when it sits on a filled `foreground` circle (send button) — the inverse fill.
+const iconOnForegroundMapping = (theme: Theme) => ({ color: theme.colors.background });
