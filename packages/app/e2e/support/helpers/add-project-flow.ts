@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import { openCommandCenter } from "./command-center";
 
 export type AddProjectFlowPage =
   | "host"
@@ -47,7 +48,12 @@ async function openAddProjectFlowSurface(
   page: Page,
   expectedPage: "host" | "method",
 ): Promise<void> {
-  await page.getByTestId("sidebar-add-project").click();
+  // The sidebar footer's persistent "+ Add project" row was retired in favor of the Command
+  // Center action (see command-center/root-registration.tsx) as the one entry point that works
+  // whether or not the workspace list is empty.
+  const panel = await openCommandCenter(page);
+  await panel.getByTestId("command-center-input").fill("Add project");
+  await panel.getByRole("button", { name: /^Add project(?:\s|$)/ }).click();
   await expect(addProjectFlow(page)).toBeVisible({ timeout: 30_000 });
   await expectAddProjectPage(page, expectedPage);
 }
