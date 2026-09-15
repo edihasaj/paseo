@@ -1,10 +1,21 @@
-import { memo, useMemo } from "react";
-import { View } from "react-native";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { StyleSheet } from "react-native-unistyles";
-import { ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
-import { TaskListRow } from "@/components/task-list-row";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { ChevronDown, ChevronUp, Circle, CircleCheck, Clock } from "lucide-react-native";
+import { useCompactTimeAgo } from "@/hooks/use-compact-time-ago";
+import type { Theme } from "@/styles/theme";
 import type { TodoEntry } from "@/types/stream";
+
+/**
+ * The card floats inside `ComposerTrackBar`, an absolutely-positioned overlay whose clearance
+ * above the transcript is a fixed estimate (`resolveComposerTrackTailClearance`), not a measured
+ * one. An unbounded row list would grow past that budget and cover transcript content, so the
+ * list scrolls internally past a handful of rows — the same reasoning as the queue track's cap.
+ */
+const TASK_ROW_HEIGHT = 28;
+const TASK_ROWS_VISIBLE = 5;
+const TASK_ROWS_MAX_HEIGHT = TASK_ROW_HEIGHT * TASK_ROWS_VISIBLE;
 
 export const AgentTaskList = memo(function AgentTaskList({
   tasks,
@@ -15,41 +26,182 @@ export const AgentTaskList = memo(function AgentTaskList({
   return <TaskListCard tasks={tasks} />;
 });
 
+type TaskState = "pending" | "in_progress" | "completed";
+
+function resolveTaskState(task: TodoEntry): TaskState {
+  if (task.completed || task.status === "completed") return "completed";
+  if (task.status === "in_progress") return "in_progress";
+  return "pending";
+}
+
 const TaskListCard = memo(function TaskListCard({ tasks }: { tasks: TodoEntry[] }) {
   const { t } = useTranslation();
+  // Starts collapsed — the header alone matches the fixed clearance the transcript already
+  // reserves for a single-row pill. Expanding is the user's call, not the default footprint.
+  const [collapsed, setCollapsed] = useState(true);
+  const handleToggle = useCallback(() => setCollapsed((current) => !current), []);
+  const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
+
+  // Client-only "last changed" stamp: the store only hands out a new `tasks`
+  // reference when the list actually changes, so this needs no server timestamp.
+  const [lastUpdatedAt, setLastUpdatedAt] = useState(() => new Date());
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    if (tasksRef.current === tasks) return;
+    tasksRef.current = tasks;
+    setLastUpdatedAt(new Date());
+  }, [tasks]);
+
   const completed = useMemo(
-    () => tasks.filter((task) => task.completed || task.status === "completed").length,
+    () => tasks.filter((task) => resolveTaskState(task) === "completed").length,
     [tasks],
   );
-  // Counts only. The active task used to ride along in the header, where it was the first thing
-  // truncated on a phone; the panel shows it in full, in place, with the rest of the list.
-  const label = t("message.todo.tasksProgress", { completed, total: tasks.length });
-  const segments = useMemo(() => [{ bucket: null, text: label }], [label]);
+
+  const timeLabel = useCompactTimeAgo(lastUpdatedAt);
+  const updatedText =
+    timeLabel === "now"
+      ? t("composer.taskProgress.updatedJustNow")
+      : t("composer.taskProgress.updatedAgo", { time: timeLabel });
+  const summaryText = t("composer.taskProgress.summary", {
+    updated: updatedText,
+    completed,
+    total: tasks.length,
+  });
 
   return (
-    <ComposerTrackPill
-      testID="agent-task-list-header"
-      segments={segments}
-      panelTitle={t("message.todo.title")}
-    >
-      {tasks.map((task, index) => (
-        <ComposerTrackRow key={task.id ?? `${index}:${task.text}`}>
-          <View style={styles.taskRow}>
-            <TaskListRow task={task} />
-          </View>
-        </ComposerTrackRow>
-      ))}
-    </ComposerTrackPill>
+    <View style={styles.card} testID="agent-task-list-header">
+      <Pressable
+        onPress={handleToggle}
+        style={styles.header}
+        accessibilityRole="button"
+        accessibilityLabel={
+          collapsed ? t("composer.taskProgress.expand") : t("composer.taskProgress.collapse")
+        }
+        accessibilityState={accessibilityState}
+      >
+        <Text style={styles.title} numberOfLines={1}>
+          {t("composer.taskProgress.title")}
+        </Text>
+        <View style={styles.headerTrailing}>
+          <Text style={styles.summary} numberOfLines={1}>
+            {summaryText}
+          </Text>
+          {collapsed ? (
+            <ThemedChevronDown size={14} uniProps={iconForegroundMutedMapping} />
+          ) : (
+            <ThemedChevronUp size={14} uniProps={iconForegroundMutedMapping} />
+          )}
+        </View>
+      </Pressable>
+      {collapsed ? null : (
+        <ScrollView style={styles.rows} contentContainerStyle={styles.rowsContent}>
+          {tasks.map((task, index) => (
+            <TaskProgressRow key={task.id ?? `${index}:${task.text}`} task={task} />
+          ))}
+        </ScrollView>
+      )}
+    </View>
   );
 });
 
-const styles = StyleSheet.create(() => ({
-  // The task row draws its own icon and text; this only lets it span the shared row frame.
-  // Basis stays `auto` so the text's width reaches the panel's measurement — see track.tsx.
-  taskRow: {
-    flexGrow: 1,
+function TaskProgressRow({ task }: { task: TodoEntry }) {
+  const state = resolveTaskState(task);
+  const text = state === "in_progress" && task.activeForm ? task.activeForm : task.text;
+  return (
+    <View style={styles.row}>
+      <TaskStateGlyph state={state} />
+      <Text
+        style={[styles.rowText, state === "in_progress" && styles.rowTextActive]}
+        numberOfLines={1}
+      >
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+function TaskStateGlyph({ state }: { state: TaskState }) {
+  if (state === "completed") {
+    return <ThemedCircleCheck size={14} uniProps={iconForegroundExtraMutedMapping} />;
+  }
+  if (state === "in_progress") {
+    return <ThemedClock size={14} uniProps={iconForegroundMapping} />;
+  }
+  return <ThemedCircle size={14} uniProps={iconForegroundExtraMutedMapping} />;
+}
+
+const styles = StyleSheet.create((theme) => ({
+  // `width: 100%` forces `ComposerTrackBar`'s track row to wrap the rest of that row's pills
+  // (subagents, diff stat, plugin pills) onto the line below, so the card reads as its own row
+  // directly above the composer rather than squeezed between them.
+  card: {
+    width: "100%",
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface1,
+    overflow: "hidden",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing[2],
+    minHeight: 36,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+  },
+  title: {
     flexShrink: 1,
-    flexBasis: "auto",
     minWidth: 0,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
+  headerTrailing: {
+    flexShrink: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+  },
+  summary: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  rows: {
+    maxHeight: TASK_ROWS_MAX_HEIGHT,
+    borderTopWidth: theme.borderWidth[1],
+    borderTopColor: theme.colors.border,
+  },
+  rowsContent: {
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[1],
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    minHeight: 28,
+  },
+  rowText: {
+    flexShrink: 1,
+    minWidth: 0,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.normal,
+  },
+  rowTextActive: {
+    color: theme.colors.foreground,
   },
 }));
+
+const ThemedChevronDown = withUnistyles(ChevronDown);
+const ThemedChevronUp = withUnistyles(ChevronUp);
+const ThemedCircle = withUnistyles(Circle);
+const ThemedCircleCheck = withUnistyles(CircleCheck);
+const ThemedClock = withUnistyles(Clock);
+const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
+const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const iconForegroundExtraMutedMapping = (theme: Theme) => ({
+  color: theme.colors.foregroundExtraMuted,
+});
