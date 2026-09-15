@@ -1272,6 +1272,9 @@ export const ru: TranslationResources = {
   newWorkspace: {
     title: "Новое рабочее пространство",
     create: "Создать",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "Локально",
       worktree: "Новый worktree",

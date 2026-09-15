@@ -126,6 +126,35 @@ test("creation progresses before agent readiness and continues after the disconn
   }
 }, 60000);
 
+test("workspace.create.request creates the initial agent inside the provisioned chat directory", async () => {
+  const daemon = await createTestPaseoDaemon({ agentClients: createTestAgentClients() });
+  const client = new DaemonClient({
+    url: `ws://127.0.0.1:${daemon.port}/ws`,
+    appVersion: "0.8.0",
+    clientId: "creation-chat-agent",
+  });
+  try {
+    await client.connect();
+    const response = await client.createWorkspace({
+      source: { kind: "chat" },
+      agent: {
+        provider: "codex",
+        // The daemon provisions the chat's scratch directory itself, so the client cannot
+        // know it in advance and sends a placeholder the daemon must ignore.
+        cwd: ".",
+        initialPrompt: "Investigate the flaky build",
+        clientMessageId: "initial-one",
+      },
+    });
+    expect(response.error).toBeNull();
+    expect(response.workspace?.workspaceDirectory).toBeTruthy();
+    expect(response.agent?.cwd).toBe(response.workspace?.workspaceDirectory);
+  } finally {
+    await client.close();
+    await daemon.close();
+  }
+}, 60000);
+
 async function connectCreationPeer(port: number) {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const frames: SessionOutboundMessage[] = [];
