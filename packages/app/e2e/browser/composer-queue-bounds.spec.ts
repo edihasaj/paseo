@@ -18,9 +18,13 @@ test("a long queue is bounded and scrolls instead of growing without end", async
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  // Five-minute stream, not one: queuing QUEUED_COUNT messages one at a time (each a UI
+  // fill+submit round trip) can run past a minute under CI load. A shorter mock turn risks the
+  // daemon's idle-drain finishing it and pulling the oldest queued message into an active turn
+  // mid-loop, which flakes the "still queued" assertions below on nothing but machine speed.
   const agent = await startRunningMockAgent(page, {
     prefix: `queue-bounds-${testInfo.workerIndex}-`,
-    model: "one-minute-stream",
+    model: "five-minute-stream",
     prompt: "Keep the agent running while messages queue.",
   });
 
