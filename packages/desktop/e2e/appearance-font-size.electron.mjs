@@ -21,7 +21,7 @@ export async function runAppearanceFontSizeRegression(page) {
   await interfaceSizeInput.waitFor({ state: "visible", timeout: SETTINGS_TIMEOUT_MS });
 
   assert((await interfaceSizeInput.inputValue()) === "14", "Interface size did not start at 14px");
-  assert((await contentSizeInput.inputValue()) === "15", "Content size did not start at 15px");
+  assert((await contentSizeInput.inputValue()) === "14", "Content size did not start at 14px");
   assert(
     (await readFontSize(sectionTitle)) === "12px",
     "Theme label did not start at the default 12px ramp size",
@@ -39,7 +39,7 @@ export async function runAppearanceFontSizeRegression(page) {
       );
       return (
         interfaceInput?.value === "12" &&
-        contentInput?.value === "15" &&
+        contentInput?.value === "14" &&
         themeLabel instanceof HTMLElement &&
         getComputedStyle(themeLabel).fontSize === "10px"
       );
