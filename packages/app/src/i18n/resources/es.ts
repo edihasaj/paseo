@@ -1290,6 +1290,9 @@ export const es: TranslationResources = {
   newWorkspace: {
     title: "Nuevo espacio de trabajo",
     create: "Crear",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "Local",
       worktree: "Nuevo worktree",

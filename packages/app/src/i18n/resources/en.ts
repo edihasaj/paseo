@@ -1264,6 +1264,9 @@ export const en = {
   newWorkspace: {
     title: "New workspace",
     create: "Create",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "Local",
       worktree: "New worktree",

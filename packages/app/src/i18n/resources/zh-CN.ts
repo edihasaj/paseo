@@ -1244,6 +1244,9 @@ export const zhCN: TranslationResources = {
   newWorkspace: {
     title: "新建 workspace",
     create: "创建",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "本地",
       worktree: "新建 worktree",

@@ -1,28 +1,23 @@
 import { router, usePathname } from "expo-router";
 import { CalendarClock, History, MessageSquarePlus, Plus, Search } from "lucide-react-native";
-import { memo, useCallback, useMemo, useState, type ComponentType } from "react";
+import { memo, useCallback, useMemo, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { useEarliestOnlineHostServerId } from "@/app/_layout";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
-import { useToast } from "@/contexts/toast-context";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItemRow } from "@/plugins/sidebar-items";
 import { canCreateWorktreeForProjectKind } from "@/projects/host-projects";
 import { useHostFeature } from "@/runtime/host-features";
-import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import {
   builtinSidebarNavLabelKey,
   builtinSidebarNavShortcutAction,
   type BuiltinSidebarNavId,
 } from "@/sidebar-nav/model";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
-import { normalizeWorkspaceDescriptor } from "@/stores/session-store";
+import { generateDraftId } from "@/stores/draft-keys";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
-import {
-  navigateToWorkspace,
-  useActiveWorkspaceSelection,
-} from "@/stores/navigation-active-workspace-store";
+import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import {
   buildNewWorkspaceRoute,
@@ -117,11 +112,9 @@ const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
 });
 
 /**
- * Starts a chat: a workspace with no directory of its own.
- *
- * Unlike New workspace this does not route to a picker, because there is nothing to pick — the
- * daemon provisions the scratch directory. The row hides on hosts that cannot provision one
- * rather than failing at press time.
+ * Opens a blank chat draft. The daemon provisions the scratch directory only once the draft
+ * sends its first prompt (see `new-workspace-screen.tsx`'s chat mode) — nothing is created by
+ * pressing this row, so navigating away without submitting leaves no trace in the sidebar.
  */
 const SidebarNewChatRow = memo(function SidebarNewChatRow({
   onBeforeNavigate,
@@ -133,31 +126,12 @@ const SidebarNewChatRow = memo(function SidebarNewChatRow({
   const onlineHostServerId = useEarliestOnlineHostServerId();
   const serverId = activeWorkspaceSelection?.serverId ?? onlineHostServerId;
   const supportsChats = useHostFeature(serverId, "chatWorkspaces");
-  // Hooks cannot be conditional, and an id no host answers to resolves to a null client,
-  // which the press handler already treats as "not ready".
-  const client = useHostRuntimeClient(serverId ?? "");
-  const toast = useToast();
-  const [creating, setCreating] = useState(false);
 
   const handlePress = useCallback(() => {
-    if (!serverId || !client || creating) return;
-    setCreating(true);
-    void (async () => {
-      try {
-        const payload = await client.createWorkspace({ source: { kind: "chat" } });
-        if (payload.error || !payload.workspace) {
-          throw new Error(payload.error ?? t("sidebar.actions.newChatFailed"));
-        }
-        onBeforeNavigate?.();
-        const workspace = normalizeWorkspaceDescriptor(payload.workspace);
-        navigateToWorkspace({ serverId, workspaceId: workspace.id });
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("sidebar.actions.newChatFailed"));
-      } finally {
-        setCreating(false);
-      }
-    })();
-  }, [client, creating, onBeforeNavigate, serverId, t, toast]);
+    if (!serverId) return;
+    onBeforeNavigate?.();
+    router.push(buildNewWorkspaceRoute({ serverId, draftId: generateDraftId(), mode: "chat" }));
+  }, [onBeforeNavigate, serverId]);
 
   if (!serverId || !supportsChats) return null;
 

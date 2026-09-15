@@ -1255,6 +1255,9 @@ export const ar: TranslationResources = {
   newWorkspace: {
     title: "مساحة عمل جديدة",
     create: "يخلق",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "محلي",
       worktree: "شجرة عمل جديدة",

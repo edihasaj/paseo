@@ -4100,21 +4100,26 @@ export class Session {
             ? async (id, workspace, onReady) => {
                 if (!workspace?.workspaceDirectory)
                   throw new Error("Created workspace has no directory");
-                let sourceCwd: string;
-                if (request.source.kind === "directory") {
-                  sourceCwd = request.source.path;
-                } else if (request.source.kind === "chat") {
-                  sourceCwd = workspace.workspaceDirectory;
+                // A chat has no directory of its own to pick a subdirectory of, and the client
+                // cannot predict the scratch directory the daemon is about to provision. The
+                // agent always runs at that scratch root; whatever cwd the client sent is ignored.
+                let agentCwd: string;
+                if (request.source.kind === "chat") {
+                  agentCwd = workspace.workspaceDirectory;
                 } else {
-                  sourceCwd = await resolveWorktreeSourceCwd(request.source, this.projectRegistry);
+                  const sourceCwd =
+                    request.source.kind === "directory"
+                      ? request.source.path
+                      : await resolveWorktreeSourceCwd(request.source, this.projectRegistry);
+                  const relativeCwd = relative(resolve(sourceCwd), resolve(agentInput.config.cwd));
+                  if (
+                    relativeCwd === ".." ||
+                    relativeCwd.startsWith(`..${sep}`) ||
+                    isAbsolute(relativeCwd)
+                  )
+                    throw new Error("Agent directory must be inside the workspace source");
+                  agentCwd = resolve(workspace.workspaceDirectory, relativeCwd);
                 }
-                const relativeCwd = relative(resolve(sourceCwd), resolve(agentInput.config.cwd));
-                if (
-                  relativeCwd === ".." ||
-                  relativeCwd.startsWith(`..${sep}`) ||
-                  isAbsolute(relativeCwd)
-                )
-                  throw new Error("Agent directory must be inside the workspace source");
                 return this.createSessionAgent(
                   {
                     ...agentInput,
@@ -4122,7 +4127,7 @@ export class Session {
                     requestId,
                     config: {
                       ...agentInput.config,
-                      cwd: resolve(workspace.workspaceDirectory, relativeCwd),
+                      cwd: agentCwd,
                     },
                     workspaceId: workspace.id,
                   },

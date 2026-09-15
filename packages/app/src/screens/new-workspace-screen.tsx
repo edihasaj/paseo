@@ -99,6 +99,9 @@ import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AgentProvider } from "@getpaseo/protocol/agent-types";
 import type { WorkspaceDraftTabSetup, WorkspaceTabTarget } from "@/workspace-tabs/model";
 import { isEmptyWorkspaceSubmission, runCreateEmptyWorkspace } from "./new-workspace-empty";
+import { CHAT_SOURCE_AGENT_CWD_PLACEHOLDER, createChatSourceWorkspace } from "./new-chat-workspace";
+import type { WorkspaceCreationResult } from "./new-workspace/creation-result";
+import { buildFirstAgentContext } from "./new-workspace/first-agent-context";
 import {
   getWorkspaceNamingAttachments,
   remapDraftCwdToWorkspace,
@@ -170,20 +173,8 @@ function isNewWorkspacePending(input: {
   return input.pendingAction !== null || input.isDraftHandoffActive;
 }
 
-function buildFirstAgentContext(input: {
-  prompt: string;
-  attachments: AgentAttachment[];
-}): { prompt?: string; attachments?: AgentAttachment[] } | undefined {
-  const trimmedPrompt = input.prompt.trim();
-  if (!trimmedPrompt && input.attachments.length === 0) {
-    return undefined;
-  }
-
-  return {
-    ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
-    attachments: input.attachments,
-  };
-}
+/** "workspace" opens the directory-picking form; "chat" opens the blank scratch-chat composer. */
+type NewWorkspaceMode = "workspace" | "chat";
 
 interface NewWorkspaceScreenProps {
   serverId: string;
@@ -191,6 +182,19 @@ interface NewWorkspaceScreenProps {
   projectId?: string;
   displayName?: string;
   draftId?: string;
+  mode: NewWorkspaceMode;
+}
+
+/**
+ * Picks the workspace- or chat-mode value for a render prop as a function call rather than an
+ * inline ternary, so the branch lives in this one-line helper instead of adding to
+ * `NewWorkspaceScreen`'s cyclomatic complexity at every call site.
+ */
+function resolveNewWorkspaceModeValue<T>(
+  isChatMode: boolean,
+  values: { workspace: T; chat: T },
+): T {
+  return isChatMode ? values.chat : values.workspace;
 }
 
 // A terminal launch sends argv, not a message: there is nothing to attach and
@@ -799,11 +803,6 @@ interface WorkspaceDraftSubmissionConfig {
   target: WorkspaceTabTarget;
 }
 
-interface WorkspaceCreationResult {
-  workspace: ReturnType<typeof normalizeWorkspaceDescriptor>;
-  agent?: AgentSnapshotPayload;
-}
-
 async function createMultiplicityWorkspace(input: {
   idempotencyKey: string;
   worktreeSlug: string;
@@ -1298,7 +1297,10 @@ function useNewWorkspaceInitialContext({
   sourceDirectory: sourceDirectoryProp,
   projectId,
   displayName: displayNameProp,
-}: NewWorkspaceScreenProps): NewWorkspaceInitialContextState {
+}: Pick<
+  NewWorkspaceScreenProps,
+  "serverId" | "sourceDirectory" | "projectId" | "displayName"
+>): NewWorkspaceInitialContextState {
   const allHosts = useHosts();
   const allServerIds = useMemo(() => allHosts.map((h) => h.serverId), [allHosts]);
   const projects = useHostProjects(allServerIds);
@@ -1631,7 +1633,9 @@ export function NewWorkspaceScreen({
   projectId,
   displayName: displayNameProp,
   draftId,
+  mode,
 }: NewWorkspaceScreenProps) {
+  const isChatMode = mode === "chat";
   const queryClient = useQueryClient();
   const { theme } = useUnistyles();
   const { t } = useTranslation();
@@ -2041,6 +2045,22 @@ export function NewWorkspaceScreen({
       if (creationResult.workspace) {
         return creationResult;
       }
+      if (isChatMode) {
+        const chatWorkspace = await createChatSourceWorkspace({
+          idempotencyKey: creationIdentity.draftId,
+          client: withConnectedClient(),
+          withInitialAgent: input.withInitialAgent,
+          agent: input.agent,
+          onEvent: input.onEvent,
+          prompt: input.prompt,
+          attachments: input.attachments,
+          mergeWorkspaces,
+          serverId: selectedServerId,
+          createFailedMessage: t("sidebar.actions.newChatFailed"),
+        });
+        setCreationResult(chatWorkspace);
+        return chatWorkspace;
+      }
       if (!selectedProject) {
         throw new Error("Choose a project");
       }
@@ -2086,6 +2106,7 @@ export function NewWorkspaceScreen({
       creationIdentity,
       creationResult,
       effectiveIsolation,
+      isChatMode,
       mergeWorkspaces,
       queryClient,
       selectedItem,
@@ -2382,11 +2403,21 @@ export function NewWorkspaceScreen({
           <ComposerViewportContent style={animatedStaticStyles.form}>
             <ScrollView style={animatedStaticStyles.setup} keyboardShouldPersistTaps="handled">
               <View style={styles.composerTitleContainer}>
-                <Text style={styles.composerTitle}>{t("newWorkspace.title")}</Text>
+                <Text style={styles.composerTitle}>
+                  {t(
+                    resolveNewWorkspaceModeValue(isChatMode, {
+                      workspace: "newWorkspace.title",
+                      chat: "sidebar.actions.newChat",
+                    }),
+                  )}
+                </Text>
               </View>
-              {formStack}
+              {resolveNewWorkspaceModeValue(isChatMode, { workspace: formStack, chat: null })}
             </ScrollView>
-            {isTerminalLaunch ? (
+            {resolveNewWorkspaceModeValue(isChatMode, {
+              workspace: isTerminalLaunch,
+              chat: false,
+            }) ? (
               <Composer
                 key="terminal"
                 externalKeyboardShift
@@ -2422,7 +2453,11 @@ export function NewWorkspaceScreen({
                 serverId={selectedServerId}
                 isPaneFocused={true}
                 onSubmitMessage={handleSubmitNewWorkspace}
-                allowEmptySubmit={true}
+                allowEmptySubmit={!isChatMode}
+                placeholder={resolveNewWorkspaceModeValue(isChatMode, {
+                  workspace: undefined,
+                  chat: t("newWorkspace.chat.placeholder"),
+                })}
                 submitButtonAccessibilityLabel={t("newWorkspace.create")}
                 submitButtonTestID="workspace-create-submit"
                 submitIcon="return"
@@ -2438,7 +2473,10 @@ export function NewWorkspaceScreen({
                 onChangeAttachments={chatDraft.setAttachments}
                 onForgeChangeRequestDetected={handleForgeChangeRequestDetected}
                 onForgeChangeRequestAutoAttach={handleForgeChangeRequestAutoAttach}
-                cwd={selectedSourceDirectory ?? ""}
+                cwd={resolveNewWorkspaceModeValue(isChatMode, {
+                  workspace: selectedSourceDirectory ?? "",
+                  chat: CHAT_SOURCE_AGENT_CWD_PLACEHOLDER,
+                })}
                 clearDraft={handleClearDraft}
                 autoFocus
                 autoFocusKey={launchFocusKey}

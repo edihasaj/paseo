@@ -1268,6 +1268,9 @@ export const ja: TranslationResources = {
   newWorkspace: {
     title: "新しいワークスペース",
     create: "作成",
+    chat: {
+      placeholder: "Message Stroll",
+    },
     isolation: {
       local: "ローカル",
       worktree: "新しいワークツリー",
