@@ -943,6 +943,33 @@ function WorkspaceHeaderProjectRow({
   );
 }
 
+/**
+ * Desktop title: "project / chat title" on one line, project muted, title in
+ * `foreground`. Converges the wide-layout case that `WorkspaceHeaderProjectRow`
+ * used to handle side by side — a project name that only repeats the title is
+ * dropped, same as before, leaving just the title.
+ */
+function WorkspaceHeaderBreadcrumb({
+  title,
+  subtitle,
+  isSubtitleDistinct,
+}: {
+  title: string;
+  subtitle: string;
+  isSubtitleDistinct: boolean;
+}) {
+  if (!isSubtitleDistinct) {
+    return <ScreenTitle testID="workspace-header-title">{title}</ScreenTitle>;
+  }
+  return (
+    <ScreenTitle testID="workspace-header-title">
+      <Text style={styles.headerBreadcrumbProject}>{subtitle}</Text>
+      <Text style={styles.headerBreadcrumbSeparator}> / </Text>
+      {title}
+    </ScreenTitle>
+  );
+}
+
 interface WorkspaceHeaderTitleBarProps {
   isLoading: boolean;
   title: string;
@@ -1008,12 +1035,22 @@ function WorkspaceHeaderTitleBar({
         </View>
       ) : (
         <View style={styles.headerTitleTextGroup}>
-          <ScreenTitle testID="workspace-header-title">{title}</ScreenTitle>
-          <WorkspaceHeaderProjectRow
-            subtitle={subtitle}
-            isSubtitleDistinct={isSubtitleDistinct}
-            serverId={normalizedServerId}
-          />
+          {isMobile ? (
+            <>
+              <ScreenTitle testID="workspace-header-title">{title}</ScreenTitle>
+              <WorkspaceHeaderProjectRow
+                subtitle={subtitle}
+                isSubtitleDistinct={isSubtitleDistinct}
+                serverId={normalizedServerId}
+              />
+            </>
+          ) : (
+            <WorkspaceHeaderBreadcrumb
+              title={title}
+              subtitle={subtitle}
+              isSubtitleDistinct={isSubtitleDistinct}
+            />
+          )}
         </View>
       )}
       <View style={styles.compactHeaderMenuCluster}>
@@ -4207,6 +4244,12 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
     flexShrink: 0,
+  },
+  headerBreadcrumbProject: {
+    color: theme.colors.foregroundMuted,
+  },
+  headerBreadcrumbSeparator: {
+    color: theme.colors.foregroundMuted,
   },
   headerTitleSkeleton: {
     width: 220,
