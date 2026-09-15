@@ -91,8 +91,8 @@ export const ru: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "Напишите агенту сообщение, отметьте @files или используйте /commands и /skills.",
-      mobile: "Сообщение,@files,/commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "Сообщение...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const ru: TranslationResources = {
       removeBrowserElement: "Удалить вложение с элементом браузера",
       openReview: "Открыть вложение проверки",
       removeReview: "Удалить вложение проверки",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "Не удалось отправить сообщение",

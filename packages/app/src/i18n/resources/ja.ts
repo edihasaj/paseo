@@ -91,8 +91,8 @@ export const ja: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "エージェントにメッセージ、@ファイル、/コマンドや/スキルを入力",
-      mobile: "メッセージ、@ファイル、/コマンド",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "メッセージ...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const ja: TranslationResources = {
       removeBrowserElement: "ブラウザ要素の添付ファイルを削除",
       openReview: "レビュー添付ファイルを開く",
       removeReview: "レビュー添付ファイルを削除",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "メッセージの送信に失敗しました",

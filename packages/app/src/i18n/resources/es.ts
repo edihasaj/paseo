@@ -91,8 +91,8 @@ export const es: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "Envíe un mensaje al agente, etiquete@fileso use/commandsy/skills",
-      mobile: "Mensaje,@files,/commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "Mensaje...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const es: TranslationResources = {
       removeBrowserElement: "Eliminar el archivo adjunto del elemento del navegador",
       openReview: "Abrir archivo adjunto de reseña",
       removeReview: "Eliminar archivo adjunto de reseña",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "No se pudo enviar el mensaje",

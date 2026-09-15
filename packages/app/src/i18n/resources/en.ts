@@ -88,8 +88,8 @@ export const en = {
   },
   composer: {
     placeholders: {
-      desktop: "Message the agent, tag @files, or use /commands and /skills",
-      mobile: "Message, @files, /commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "Message...",
       terminal: "Prompt",
     },
@@ -145,6 +145,14 @@ export const en = {
       removeBrowserElement: "Remove browser element attachment",
       openReview: "Open review attachment",
       removeReview: "Remove review attachment",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "Failed to send message",

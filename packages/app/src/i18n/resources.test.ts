@@ -229,9 +229,7 @@ describe("translation resources", () => {
   });
 
   it("includes composer and agent workflow keys for the Batch 2 migration", () => {
-    expect(en.composer.placeholders.desktop).toBe(
-      "Message the agent, tag @files, or use /commands and /skills",
-    );
+    expect(en.composer.placeholders.desktop).toBe("Message Stroll");
     expect(en.composer.input.addAttachment).toBe("Add attachment");
     expect(en.composer.input.sendMessage).toBe("Send message");
     expect(en.composer.voice.startDictation).toBe("Start dictation");

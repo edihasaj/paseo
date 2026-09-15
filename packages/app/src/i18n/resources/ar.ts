@@ -91,8 +91,8 @@ export const ar: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "أرسل رسالة إلى الوكيل أو ضع علامة على @files أو استخدم /commands و /skills",
-      mobile: "الرسالة، @files ، /commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "رسالة...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const ar: TranslationResources = {
       removeBrowserElement: "إزالة مرفق عنصر المتصفح",
       openReview: "فتح مرفق المراجعة",
       removeReview: "إزالة مرفق المراجعة",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "فشل في إرسال الرسالة",

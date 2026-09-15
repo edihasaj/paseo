@@ -93,8 +93,8 @@ export const fr: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "Envoyez un message à l'agent, marquez@filesou utilisez/commandset/skills",
-      mobile: "Message,@files,/commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "Message...",
       terminal: "Prompt",
     },
@@ -150,6 +150,14 @@ export const fr: TranslationResources = {
       removeBrowserElement: "Supprimer la pièce jointe d'un élément de navigateur",
       openReview: "Ouvrir la pièce jointe de l'avis",
       removeReview: "Supprimer la pièce jointe de l'avis",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "Échec de l'envoi du message",
