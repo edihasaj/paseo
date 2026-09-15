@@ -29,13 +29,13 @@ test("a long queue is bounded and scrolls instead of growing without end", async
       await queueMessage(page, `queued message ${index}`);
     }
 
-    // Every queued message survives — the cap is visual only, it must not drop work.
-    await expect(page.getByRole("button", { name: "Send queued message now" })).toHaveCount(
-      QUEUED_COUNT,
-    );
-
     const track = page.getByTestId("composer-queue-track");
     await expect(track).toBeVisible();
+
+    // Every queued message survives — the cap is visual only, it must not drop work. Each row's
+    // "Send queued message now" button is hover-revealed (composer/index.tsx QueuedMessageRow),
+    // so assert on the always-rendered row text instead of the button's accessible name.
+    await expect(track.getByText(/^queued message \d+$/)).toHaveCount(QUEUED_COUNT);
 
     const cap = queueTrackMaxHeight({ spacing: 8, borderWidth: 1 });
     const box = await track.boundingBox();
