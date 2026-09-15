@@ -112,6 +112,7 @@ import {
   type MarkdownCopyInlineTag,
 } from "@/assistant-selection-copy/markup";
 import { capAssistantMessageForRender, getUtf8ByteLength } from "./assistant-message-render-limit";
+import { rewriteAssistantAnnotations } from "@/assistant-annotations/rewrite";
 export type { InlinePathTarget } from "@/assistant-file-links";
 export type { AssistantForkTarget };
 
@@ -1512,7 +1513,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     () => createAssistantMarkdownParser({ streaming: true }),
     [],
   );
-  const renderedMessage = useMemo(() => capAssistantMessageForRender(message), [message]);
+  const renderedMessage = useMemo(
+    () => capAssistantMessageForRender(rewriteAssistantAnnotations(message)),
+    [message],
+  );
   // Paint a paced prefix while the turn is streaming so text arrives at a steady
   // rate instead of in whatever lumps the daemon's coalescing window produced.
   const stream = useWordStream(renderedMessage.text, phase);
