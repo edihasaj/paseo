@@ -19,8 +19,10 @@ const testTheme = {
     surface1: "#fafafa",
     surface2: "#f4f4f5",
     surface3: "#e4e4e7",
+    background: "#ffffff",
     border: "#e4e4e7",
     borderAccent: "#a1a1aa",
+    interactionHighlight: "rgba(0, 0, 0, 0.06)",
     palette: {
       amber: { 500: "#f59e0b" },
       blue: { 300: "#93c5fd" },
@@ -51,7 +53,8 @@ const testTheme = {
     xl: 12,
     full: 9999,
   },
-  iconSize: { sm: 16, md: 20 },
+  letterSpacing: { wide: 0.4 },
+  iconSize: { xs: 12, sm: 16, md: 20 },
   opacity: { 50: 0.5 },
   shadow: {
     sm: {

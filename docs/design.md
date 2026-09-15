@@ -114,6 +114,16 @@ Five primitives. The pick is determined by option count, the need to search, and
 
 Three themes is `DropdownMenu`. Thirty hosts is `Combobox`. A label and a value is `AdaptiveModalSheet`. "Are you sure?" is `confirmDialog`.
 
+### Picker chrome
+
+`DropdownMenu`, `ContextMenu`, and `Combobox` share one panel shape: `surface1`, a `borderAccent` hairline, `borderRadius.xl`, `shadow.md`. Rows sit on `borderRadius.md` and fill `interactionHighlight` on hover, press, and active (the row you're inside, not the row you chose) — never `surface2`, which is reserved for a trigger's open state. A selected row draws a trailing `Check` (`iconSize.sm`, `foreground`) instead of a background; a submenu row's `ChevronRight` is 12px and `foregroundMuted`. Section labels (`MenuLabel`) are `fontSize.sm`, `fontWeight.medium`, uppercase, `letterSpacing.wide`, `foregroundMuted`. Popovers hold a floor of 220 desktop width regardless of trigger size.
+
+A combobox's search row sits inside the panel with a leading `Search` glyph and no box of its own — just a hairline divider below it. An empty result is `foregroundMuted`, centered, in a 32px row.
+
+Triggers (`DropdownTrigger`, `ComboboxTrigger`, `SelectField`) are quiet ghost pills: transparent at rest, `interactionHighlight` on hover, `surface2` once open. The trailing `ChevronDown` is 12px `foregroundMuted`. `SelectField` keeps its row height in settings but takes the same trigger look.
+
+`<AdaptiveModalSheet>`'s desktop card is `borderRadius.xl`, a `borderAccent` hairline, `shadow.lg`. The title is `fontWeight.medium`; the close affordance is a ghost `X`. The compact sheet's grabber is `border`.
+
 ---
 
 ## 7. Density and rhythm

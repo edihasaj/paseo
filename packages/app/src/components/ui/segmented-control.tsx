@@ -167,7 +167,8 @@ const styles = StyleSheet.create((theme) => {
     container: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "transparent",
+      backgroundColor: theme.colors.surface2,
+      borderRadius: theme.borderRadius.lg,
       gap: theme.spacing[1],
     },
     containerXs: {
@@ -196,7 +197,8 @@ const styles = StyleSheet.create((theme) => {
       ...geometry.segmentedSegmentMd,
     },
     segmentSelected: {
-      backgroundColor: theme.colors.surface3,
+      backgroundColor: theme.colors.background,
+      ...theme.shadow.sm,
     },
     segmentHover: {
       backgroundColor: theme.colors.surface2,

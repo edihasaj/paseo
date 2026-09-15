@@ -314,7 +314,7 @@ export function ComboboxItem({
       {selected || trailingSlot ? (
         <View style={styles.comboboxItemTrailingContainer}>
           <View style={styles.comboboxItemTrailingSlot}>
-            {selected ? <Check size={16} color={theme.colors.foregroundMuted} /> : null}
+            {selected ? <Check size={14} color={theme.colors.foreground} /> : null}
           </View>
           {trailingSlot}
         </View>
@@ -1662,7 +1662,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     paddingHorizontal: theme.spacing[3],
     gap: theme.spacing[2],
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: "transparent",
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     ...(IS_WEB ? {} : { marginHorizontal: theme.spacing[1] }),
@@ -1680,28 +1680,24 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[2],
-    borderRadius: 0,
-    ...(IS_WEB
-      ? {}
-      : {
-          marginHorizontal: theme.spacing[1],
-          marginBottom: theme.spacing[1],
-        }),
+    marginHorizontal: theme.spacing[1],
+    marginBottom: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
   },
   comboboxItemHovered: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   comboboxItemHoveredElevated: {
     backgroundColor: theme.colors.surface2,
   },
   comboboxItemPressed: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   comboboxItemPressedElevated: {
     backgroundColor: theme.colors.surface2,
   },
   comboboxItemActive: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.interactionHighlight,
   },
   comboboxItemDisabled: {
     opacity: 0.55,
@@ -1742,8 +1738,10 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
   },
   emptyText: {
+    minHeight: 32,
+    lineHeight: 32,
     paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
+    textAlign: "center",
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
   },
@@ -1780,10 +1778,10 @@ const styles = StyleSheet.create((theme) => ({
     left: 0,
   },
   desktopContainer: {
-    backgroundColor: theme.colors.surface0,
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius.xl,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.borderAccent,
     ...theme.shadow.md,
     maxHeight: 400,
     overflow: "hidden",

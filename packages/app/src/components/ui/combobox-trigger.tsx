@@ -90,7 +90,7 @@ export const ComboboxTrigger = forwardRef<View, ComboboxTriggerProps>(function C
         {chevron !== null &&
           (chevron ?? (
             <View style={styles.chevronContainer}>
-              <ThemedChevronDown size={ICON_SIZE.sm} uniProps={chevronColorMapping} />
+              <ThemedChevronDown size={ICON_SIZE.xs} uniProps={chevronColorMapping} />
             </View>
           ))}
       </View>

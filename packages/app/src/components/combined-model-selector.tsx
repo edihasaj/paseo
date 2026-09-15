@@ -316,7 +316,7 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 0,
   },
   triggerPressed: {
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.surface2,
   },
   triggerDisabled: {
     opacity: 0.5,

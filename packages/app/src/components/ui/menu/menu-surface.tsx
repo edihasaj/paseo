@@ -198,7 +198,7 @@ function MenuPopoverSurface({
   align = "start",
   offset = 4,
   width,
-  minWidth = 180,
+  minWidth = 220,
   maxWidth,
   maxHeight,
   fullWidth = false,

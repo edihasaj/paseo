@@ -137,6 +137,12 @@ const foregroundMutedMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 });
 
+// The selected-row check is the answer, not chrome — it reads at full foreground weight,
+// distinct from the muted glyphs and chevrons around it. See docs/design.md §6.
+const foregroundMapping = (theme: Theme) => ({
+  color: theme.colors.foreground,
+});
+
 const foregroundExtraMutedMapping = (theme: Theme) => ({
   color: theme.colors.foregroundExtraMuted,
 });
@@ -597,9 +603,7 @@ function ModelBrowserRow({
           <View style={styles.browserRowTrailing}>
             {selectionIndicator ? (
               <View style={styles.browserRowSelection}>
-                {selected ? (
-                  <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMutedMapping} />
-                ) : null}
+                {selected ? <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMapping} /> : null}
               </View>
             ) : null}
             {trailingSlot}
@@ -811,9 +815,7 @@ function ModelRow({
           </View>
           <View style={styles.browserRowTrailing}>
             <View style={styles.browserRowSelection}>
-              {isSelected ? (
-                <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMutedMapping} />
-              ) : null}
+              {isSelected ? <ThemedCheck size={ICON_SIZE.sm} uniProps={foregroundMapping} /> : null}
             </View>
             {profileAction}
           </View>
@@ -1015,7 +1017,7 @@ function GroupProviderButton({
     () => (
       <View style={styles.drillDownTrailing}>
         {stateNode}
-        <ThemedChevronRight size={ICON_SIZE.sm} uniProps={foregroundMutedMapping} />
+        <ThemedChevronRight size={ICON_SIZE.xs} uniProps={foregroundMutedMapping} />
       </View>
     ),
     [stateNode],
