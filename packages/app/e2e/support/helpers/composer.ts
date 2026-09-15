@@ -62,6 +62,9 @@ export async function sendDraftToQueue(page: Page): Promise<void> {
 }
 
 export async function expectQueuedMessageButton(page: Page): Promise<void> {
+  // Queue row actions are hover-revealed (composer/index.tsx QueuedMessageRow), so hover the
+  // track before asserting the button is visible; it stays hidden (display: none) otherwise.
+  await page.getByTestId("composer-queue-track").hover();
   await expect(page.getByRole("button", { name: "Send queued message now" })).toBeVisible({
     timeout: 10_000,
   });

@@ -162,7 +162,9 @@ class StartupAssertions {
     const hostRow = this.page.getByTestId(`sidebar-host-row-${input.serverId}`);
     await expect(hostRow).toBeVisible({ timeout: 15_000 });
     await expect(hostRow).toContainText(input.label);
-    await expect(this.page.getByTestId("sidebar-add-project")).toBeVisible();
+    // The sidebar footer's persistent "+ Add project" row was retired; with no projects the
+    // workspace list's empty state carries the same action (by accessible name, not testID).
+    await expect(this.page.getByRole("button", { name: "Add project" })).toBeVisible();
     await expect(this.page.getByTestId("sidebar-import-session")).toBeVisible();
     await expect(this.page.getByTestId("sidebar-settings")).toBeVisible();
     await expect(this.page.getByTestId("welcome-screen")).toHaveCount(0);

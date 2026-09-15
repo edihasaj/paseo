@@ -129,7 +129,9 @@ test.describe("Workspace navigation regression", () => {
       { timeout: 30_000 },
     );
     await expect(page.getByText("Connecting", { exact: true })).toBeVisible();
-    await expect(page.getByText("Notification Host", { exact: true })).toBeVisible();
+    // The sidebar now shows the active host's name in two places (the brand row trigger and
+    // the footer identity trigger), so match either rather than the exact-text page-wide query.
+    await expect(page.getByTestId("sidebar-brand-trigger")).toContainText("Notification Host");
     await expect(page.getByText("Add a project", { exact: true })).toHaveCount(0);
   });
 
@@ -185,6 +187,9 @@ test.describe("Workspace navigation regression", () => {
       });
       await waitForWorkspaceTabsVisible(page);
       await expectWorkspaceTabVisible(page, agent.id);
+      // The reconnect toast belongs to the visible agent panel, which mounts
+      // after the tab strip. Drop the connection only after that panel is ready.
+      await expectComposerVisible(page);
 
       await daemonGate.drop();
       await daemonGate.waitForBlockedConnection();
