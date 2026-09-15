@@ -10,6 +10,7 @@ import { connectNewWorkspaceDaemonClient } from "./new-workspace";
 import { seedWorkspace } from "./seed-client";
 import { pluginRequirements } from "./plugin-fixture";
 import { waitForSettledPosition } from "./sheet-layout";
+import { expectWorkspaceHeaderTitle } from "./workspace-ui";
 
 const PLUGIN_ID = "button-showcase";
 const WIDE = { width: 1440, height: 900 };
@@ -297,18 +298,14 @@ export async function withButtonShowcase(
           const recovered = (await observation.textContent())!;
           expect([first, second]).not.toContain(recovered);
           await showcase.setTitle("Healthy app after button failure");
-          await expect(page.getByTestId("workspace-header-title")).toHaveText(
-            "Healthy app after button failure",
-          );
+          await expectWorkspaceHeaderTitle(page, "Healthy app after button failure");
           await showcase.disable();
           await expect.poll(() => released.has(recovered)).toBe(true);
           await expect(page.getByRole("button", { name: "Run review", exact: true })).toHaveCount(
             0,
           );
           await showcase.setTitle("Healthy app after plugin unload");
-          await expect(page.getByTestId("workspace-header-title")).toHaveText(
-            "Healthy app after plugin unload",
-          );
+          await expectWorkspaceHeaderTitle(page, "Healthy app after plugin unload");
         }),
       openWideMenusAndPopovers: () =>
         test.step("wide buttons have placement-owned labels and chevrons", async () => {
@@ -452,9 +449,9 @@ export async function withButtonShowcase(
             "Plugin buttons with a long project name",
           );
           await showcase.setTitle("Button showcase with a long workspace title");
-          await expect(page.getByTestId("workspace-header-title")).toHaveText(
-            "Button showcase with a long workspace title",
-          );
+          await expectWorkspaceHeaderTitle(page, "Button showcase with a long workspace title", {
+            subtitle: "Plugin buttons with a long project name",
+          });
           await expectHeaderTextTruncated(page);
           await capture(page, testInfo, "12-compact-buttons");
           await openCompactOverflowWithHeaderChrome(page, testInfo);
