@@ -15,6 +15,8 @@ type AgentControlTriggerProps = Omit<
   surface: "toolbar" | "sheet";
   label: string;
   value?: string;
+  /** Overrides the value/label text colour — the mode pill's unattended-mode warning. */
+  valueColor?: string;
   showToolbarLabel?: boolean;
   showCaret?: boolean;
   open?: boolean;
@@ -30,6 +32,7 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
       surface,
       label,
       value,
+      valueColor,
       showToolbarLabel = true,
       showCaret = false,
       open = false,
@@ -85,7 +88,13 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
           </Text>
         ) : null}
         {showValue ? (
-          <Text style={isSheet ? styles.sheetValue : styles.toolbarValue} numberOfLines={1}>
+          <Text
+            style={[
+              isSheet ? styles.sheetValue : styles.toolbarValue,
+              valueColor ? { color: valueColor } : null,
+            ]}
+            numberOfLines={1}
+          >
             {value ?? label}
           </Text>
         ) : null}

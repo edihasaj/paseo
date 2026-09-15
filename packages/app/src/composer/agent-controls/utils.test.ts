@@ -3,6 +3,7 @@ import {
   getFeatureHighlightColor,
   getFeatureTooltip,
   getAgentControlHintKey,
+  isUnattendedAgentMode,
   normalizeModelId,
   resolveAgentModelSelection,
 } from "./utils";
@@ -37,6 +38,19 @@ describe("feature metadata helpers", () => {
     expect(getFeatureHighlightColor("fast_mode")).toBe("yellow");
     expect(getFeatureHighlightColor("plan_mode")).toBe("blue");
     expect(getFeatureHighlightColor("other")).toBe("default");
+  });
+});
+
+describe("isUnattendedAgentMode", () => {
+  it("flags the dangerous colour tier", () => {
+    expect(isUnattendedAgentMode({ colorTier: "dangerous" })).toBe(true);
+  });
+
+  it("leaves every other tier alone", () => {
+    expect(isUnattendedAgentMode({ colorTier: "safe" })).toBe(false);
+    expect(isUnattendedAgentMode({ colorTier: "moderate" })).toBe(false);
+    expect(isUnattendedAgentMode({ colorTier: "planning" })).toBe(false);
+    expect(isUnattendedAgentMode({ colorTier: undefined })).toBe(false);
   });
 });
 

@@ -385,6 +385,7 @@ interface RenderQueueTrackArgs {
   steerLabel: string;
   removeLabel: string;
   sendNowLabel: string;
+  isCompactLayout: boolean;
 }
 
 function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
@@ -397,6 +398,7 @@ function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
     steerLabel,
     removeLabel,
     sendNowLabel,
+    isCompactLayout,
   } = args;
   if (queuedMessages.length === 0) return null;
   return (
@@ -422,6 +424,7 @@ function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
             steerLabel={steerLabel}
             removeLabel={removeLabel}
             sendNowLabel={sendNowLabel}
+            isCompactLayout={isCompactLayout}
           />
         ))}
       </ScrollView>
@@ -699,6 +702,7 @@ interface QueuedMessageRowProps {
   steerLabel: string;
   removeLabel: string;
   sendNowLabel: string;
+  isCompactLayout: boolean;
 }
 
 function QueuedMessageRow({
@@ -711,7 +715,14 @@ function QueuedMessageRow({
   steerLabel,
   removeLabel,
   sendNowLabel,
+  isCompactLayout,
 }: QueuedMessageRowProps) {
+  // Hover lives on the plain outer View; press lives on the separate inner Pressables below.
+  // See docs/hover.md — this is the canonical shape, not a Pressable tracking its own hover.
+  const [isHovered, setIsHovered] = useState(false);
+  const handlePointerEnter = useCallback(() => setIsHovered(true), []);
+  const handlePointerLeave = useCallback(() => setIsHovered(false), []);
+  const showActions = isHovered || isNative || isCompactLayout;
   const handleEdit = useCallback(() => {
     onEdit(item.id);
   }, [onEdit, item.id]);
@@ -722,14 +733,21 @@ function QueuedMessageRow({
     onRemove(item.id);
   }, [onRemove, item.id]);
   return (
-    <View style={[styles.queueItem, !isLast && styles.queueItemDivider]}>
+    <View
+      style={[styles.queueItem, !isLast && styles.queueItemDivider]}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={handlePointerLeave}
+    >
       <View style={styles.queueSummary}>
         <ThemedListEnd size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />
         <Text style={styles.queueText} numberOfLines={1} ellipsizeMode="tail">
           {item.text}
         </Text>
       </View>
-      <View style={styles.queueActions}>
+      <View
+        style={[styles.queueActions, !showActions && styles.queueActionsHidden]}
+        pointerEvents={showActions ? "auto" : "none"}
+      >
         <Pressable
           onPress={handleSendNow}
           style={[styles.queueActionButton, styles.queueSteerButton]}
@@ -2121,9 +2139,27 @@ function ComposerContentImpl({
       contextWindowMeterGlyphSize,
     ],
   );
-  const beforeVoiceContent = useMemo(
+  const runningIndicator = useMemo(
+    () =>
+      isAgentRunning ? (
+        <View testID="composer-running-indicator">
+          <ThemedLoadingSpinner size="small" uniProps={iconForegroundMutedMapping} />
+        </View>
+      ) : null,
+    [isAgentRunning],
+  );
+  const contextWindowSlot = useMemo(
     () => resolveContextWindowPlacement(contextWindowMeter, hasAgent),
     [contextWindowMeter, hasAgent],
+  );
+  const beforeVoiceContent = useMemo(
+    () => (
+      <>
+        {runningIndicator}
+        {contextWindowSlot}
+      </>
+    ),
+    [runningIndicator, contextWindowSlot],
   );
 
   const hasGithubAttachment = useMemo(
@@ -2361,8 +2397,16 @@ function ComposerContentImpl({
         steerLabel: t("composer.attachments.steerQueuedMessage"),
         removeLabel: t("composer.attachments.removeQueuedMessage"),
         sendNowLabel: t("composer.attachments.sendQueuedMessageNow"),
+        isCompactLayout,
       }),
-    [handleEditQueuedMessage, handleRemoveQueuedMessage, handleSendQueuedNow, queuedMessages, t],
+    [
+      handleEditQueuedMessage,
+      handleRemoveQueuedMessage,
+      handleSendQueuedNow,
+      isCompactLayout,
+      queuedMessages,
+      t,
+    ],
   );
   const contextTray = useMemo(
     () =>
@@ -2586,7 +2630,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
     width: 28,
     height: 28,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.palette.red[600],
+    backgroundColor: theme.colors.destructive,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: theme.spacing[1],
@@ -2680,6 +2724,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
   },
+  // Opacity, not conditional rendering — the row's geometry stays fixed on hover.
+  queueActionsHidden: {
+    opacity: 0,
+  },
   queueActionButton: {
     width: QUEUE_ACTION_BUTTON_SIZE,
     height: QUEUE_ACTION_BUTTON_SIZE,
@@ -2713,6 +2761,7 @@ const ThemedListEnd = withUnistyles(ListEnd);
 const ThemedPencil = withUnistyles(Pencil);
 const ThemedCornerDownRight = withUnistyles(CornerDownRight);
 const ThemedTrash2 = withUnistyles(Trash2);
+const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 

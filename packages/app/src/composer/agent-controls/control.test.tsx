@@ -36,4 +36,20 @@ describe("AgentControlTrigger", () => {
     expect(onPointerEnter).toHaveBeenCalledTimes(1);
     expect(onFocus).toHaveBeenCalledTimes(1);
   });
+
+  it("applies an override colour to the value text", () => {
+    const view = render(
+      <AgentControlTrigger
+        icon={TestIcon}
+        surface="toolbar"
+        label="Mode"
+        value="Bypass"
+        valueColor="rgb(192, 150, 100)"
+        onPress={vi.fn()}
+        accessibilityLabel="Select mode"
+      />,
+    );
+    const value = view.getByText("Bypass");
+    expect(getComputedStyle(value).color).toBe("rgb(192, 150, 100)");
+  });
 });

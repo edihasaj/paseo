@@ -1,9 +1,18 @@
-import type { AgentFeature, AgentModelDefinition } from "@getpaseo/protocol/agent-types";
+import type { AgentFeature, AgentMode, AgentModelDefinition } from "@getpaseo/protocol/agent-types";
 import { i18n } from "@/i18n/i18next";
 import { formatThinkingOptionLabel } from "@/agent-controls/labels";
 import { FAST_MODE_FEATURE_ID, PLAN_MODE_FEATURE_ID } from "@/agent-controls/policy";
 
 export type ExplainedAgentControl = "mode" | "model" | "thinking";
+
+/**
+ * The provider's most-permissioned, no-prompt mode — "Bypass", "Full Access", "Allow All". The
+ * composer's mode pill calls this out in `statusWarning` so picking it reads as a choice, not a
+ * default.
+ */
+export function isUnattendedAgentMode(mode: Pick<AgentMode, "colorTier">): boolean {
+  return mode.colorTier === "dangerous";
+}
 export type FeatureHighlightColor = "blue" | "default" | "green" | "yellow";
 export type AgentControlHintKey =
   | "agentControls.hints.thinking"

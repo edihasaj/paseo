@@ -23,8 +23,8 @@ import {
 } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useShallow } from "zustand/shallow";
-import { Settings2 } from "lucide-react-native";
-import { getAgentFeatureIcon, ThinkingIcon } from "@/agent-controls/icons";
+import { Settings2, Zap } from "lucide-react-native";
+import { getAgentFeatureIcon } from "@/agent-controls/icons";
 import { formatThinkingOptionLabel } from "@/agent-controls/labels";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
 import { CombinedModelSelector } from "@/components/combined-model-selector";
@@ -1031,156 +1031,163 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
   const handleOpenFeatures = useCallback(() => handleOpenSheet("features"), [handleOpenSheet]);
   return (
     <>
-      {providerOptions && providerOptions.length > 0 ? (
-        <>
-          <ComboboxTrigger
-            ref={providerAnchorRef}
-            collapsable={false}
-            disabled={disabled || !canSelectProvider}
-            onPress={handleProviderPress}
-            style={providerPressableStyle}
-            accessibilityRole="button"
-            accessibilityLabel={t("agentControls.provider.select")}
-            testID="agent-provider-selector"
-          >
-            <Text style={styles.modeBadgeText}>{displayProvider}</Text>
-          </ComboboxTrigger>
-          <Combobox
-            options={comboboxProviderOptions}
-            value={selectedProviderId ?? ""}
-            onSelect={handleProviderSelect}
-            searchable={comboboxProviderOptions.length > DESKTOP_SEARCH_THRESHOLD}
-            open={openSelector === "provider"}
-            onOpenChange={handleProviderOpenChange}
-            anchorRef={providerAnchorRef}
-            desktopPlacement="top-start"
-          />
-        </>
-      ) : null}
-
-      {canSelectModel ? (
-        <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
-          <TooltipTrigger asChild triggerRefProp="ref">
-            <View style={styles.modelControl}>
-              <CombinedModelSelector
-                providers={modelSelectorProviders}
-                selectedProvider={provider}
-                selectedModel={selectedModelId ?? ""}
-                onSelect={handleDesktopModelSelect}
-                profiles={agentProfiles}
-                onApplyProfile={onApplyAgentProfile}
-                onEditProfiles={onEditAgentProfiles}
-                onCreateProfile={onCreateAgentProfile}
-                onEditProfile={onEditAgentProfile}
-                isLoading={isModelLoading}
-                disabled={modelDisabled}
-                onOpen={onModelSelectorOpen}
-                onClose={onDropdownClose}
-                onRetryProvider={onRetryModelProvider}
-                isRetryingProvider={isRetryingModelProvider}
-                serverId={modelSelectorServerId}
-                desktopPlacement="top-start"
-                desktopMinWidth={360}
-                toolbar={modelToolbar}
-              />
-            </View>
-          </TooltipTrigger>
-          <TooltipContent side="top" align="center" offset={8}>
-            <Text style={styles.tooltipText}>{t(getAgentControlHintKey("model"))}</Text>
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
-
-      {thinkingOptions && thinkingOptions.length > 0 ? (
-        <>
-          <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
-            <TooltipTrigger asChild triggerRefProp="ref">
-              <AgentControlTrigger
-                ref={thinkingAnchorRef}
-                icon={ThinkingIcon}
-                surface="toolbar"
-                label={t("agentControls.thinking.title")}
-                value={displayThinking}
-                showToolbarLabel={presentation.showThinkingLabel}
-                showCaret={presentation.showCarets}
-                open={openSelector === "thinking"}
-                disabled={disabled || !canSelectThinking}
-                onPress={handleThinkingPress}
-                accessibilityLabel={t("agentControls.thinking.selectWithValue", {
-                  value: displayThinking,
-                })}
-                testID="agent-thinking-selector"
-              />
-            </TooltipTrigger>
-            <TooltipContent side="top" align="center" offset={8}>
-              <Text style={styles.tooltipText}>{t(getAgentControlHintKey("thinking"))}</Text>
-            </TooltipContent>
-          </Tooltip>
-          <Combobox
-            options={comboboxThinkingOptions}
-            value={selectedThinkingOptionId ?? ""}
-            onSelect={handleThinkingSelect}
-            searchable={comboboxThinkingOptions.length > DESKTOP_SEARCH_THRESHOLD}
-            open={openSelector === "thinking"}
-            onOpenChange={handleThinkingOpenChange}
-            anchorRef={thinkingAnchorRef}
-            desktopPlacement="top-start"
-            desktopMinWidth={200}
-            renderOption={renderThinkingOption}
-          />
-        </>
-      ) : null}
-
+      {/*
+        Mode leads the row, next to the attach button. Everything else — provider, model,
+        thinking, features — trails at the row's own right edge via `marginLeft: auto`, so it
+        sits flush against the composer's mic/send group with no visible seam between the two
+        button clusters.
+      */}
       {modeControl ? <AgentModeControl {...modeControl} onClose={onDropdownClose} /> : null}
       {accountControl ? (
         <AgentAccountControl {...accountControl} onClose={onDropdownClose} />
       ) : null}
+      <View style={styles.trailingControls}>
+        {providerOptions && providerOptions.length > 0 ? (
+          <>
+            <ComboboxTrigger
+              ref={providerAnchorRef}
+              collapsable={false}
+              disabled={disabled || !canSelectProvider}
+              onPress={handleProviderPress}
+              style={providerPressableStyle}
+              accessibilityRole="button"
+              accessibilityLabel={t("agentControls.provider.select")}
+              testID="agent-provider-selector"
+            >
+              <Text style={styles.modeBadgeText}>{displayProvider}</Text>
+            </ComboboxTrigger>
+            <Combobox
+              options={comboboxProviderOptions}
+              value={selectedProviderId ?? ""}
+              onSelect={handleProviderSelect}
+              searchable={comboboxProviderOptions.length > DESKTOP_SEARCH_THRESHOLD}
+              open={openSelector === "provider"}
+              onOpenChange={handleProviderOpenChange}
+              anchorRef={providerAnchorRef}
+              desktopPlacement="top-start"
+            />
+          </>
+        ) : null}
 
-      {presentation.aggregateFeatures && features?.length ? (
-        <>
-          <Pressable
-            onPress={handleOpenFeatures}
-            disabled={disabled}
-            style={styles.modeIconBadge}
-            accessibilityRole="button"
-            accessibilityLabel={t("agentControls.features.open")}
-            testID="agent-controls-features"
-          >
-            <ComposerToolbarGlyph size={glyphSize}>
-              <Settings2 size={glyphSize} color={theme.colors.foregroundMuted} />
-            </ComposerToolbarGlyph>
-          </Pressable>
-          <AdaptiveModalSheet
-            header={featuresSheetHeader}
-            visible={activeSheet === "features"}
-            onClose={handleCloseSheet}
-            testID="agent-features-sheet"
-          >
-            {features.map((feature) => (
-              <SheetFeatureItem
-                key={`feature-${feature.id}`}
-                feature={feature}
-                disabled={disabled}
-                openSelector={openSelector}
-                handleOpenChange={handleNestedOpenChange}
-                onSetFeature={onSetFeature}
-              />
-            ))}
-          </AdaptiveModalSheet>
-        </>
-      ) : (
-        features?.map((feature) => (
-          <DesktopFeatureItem
-            key={`feature-${feature.id}`}
-            feature={feature}
-            disabled={disabled}
-            openSelector={openSelector}
-            handleOpenChange={handleOpenChange}
-            onSetFeature={onSetFeature}
-            onActionComplete={onDropdownClose}
-          />
-        ))
-      )}
+        {canSelectModel ? (
+          <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
+            <TooltipTrigger asChild triggerRefProp="ref">
+              <View style={styles.modelControl}>
+                <CombinedModelSelector
+                  providers={modelSelectorProviders}
+                  selectedProvider={provider}
+                  selectedModel={selectedModelId ?? ""}
+                  onSelect={handleDesktopModelSelect}
+                  profiles={agentProfiles}
+                  onApplyProfile={onApplyAgentProfile}
+                  onEditProfiles={onEditAgentProfiles}
+                  onCreateProfile={onCreateAgentProfile}
+                  onEditProfile={onEditAgentProfile}
+                  isLoading={isModelLoading}
+                  disabled={modelDisabled}
+                  onOpen={onModelSelectorOpen}
+                  onClose={onDropdownClose}
+                  onRetryProvider={onRetryModelProvider}
+                  isRetryingProvider={isRetryingModelProvider}
+                  serverId={modelSelectorServerId}
+                  desktopPlacement="top-start"
+                  desktopMinWidth={360}
+                  toolbar={modelToolbar}
+                />
+              </View>
+            </TooltipTrigger>
+            <TooltipContent side="top" align="center" offset={8}>
+              <Text style={styles.tooltipText}>{t(getAgentControlHintKey("model"))}</Text>
+            </TooltipContent>
+          </Tooltip>
+        ) : null}
+
+        {thinkingOptions && thinkingOptions.length > 0 ? (
+          <>
+            <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
+              <TooltipTrigger asChild triggerRefProp="ref">
+                <AgentControlTrigger
+                  ref={thinkingAnchorRef}
+                  icon={Zap}
+                  surface="toolbar"
+                  label={t("agentControls.thinking.title")}
+                  value={displayThinking}
+                  showToolbarLabel={presentation.showThinkingLabel}
+                  showCaret={presentation.showCarets}
+                  open={openSelector === "thinking"}
+                  disabled={disabled || !canSelectThinking}
+                  onPress={handleThinkingPress}
+                  accessibilityLabel={t("agentControls.thinking.selectWithValue", {
+                    value: displayThinking,
+                  })}
+                  testID="agent-thinking-selector"
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" align="center" offset={8}>
+                <Text style={styles.tooltipText}>{t(getAgentControlHintKey("thinking"))}</Text>
+              </TooltipContent>
+            </Tooltip>
+            <Combobox
+              options={comboboxThinkingOptions}
+              value={selectedThinkingOptionId ?? ""}
+              onSelect={handleThinkingSelect}
+              searchable={comboboxThinkingOptions.length > DESKTOP_SEARCH_THRESHOLD}
+              open={openSelector === "thinking"}
+              onOpenChange={handleThinkingOpenChange}
+              anchorRef={thinkingAnchorRef}
+              desktopPlacement="top-start"
+              desktopMinWidth={200}
+              renderOption={renderThinkingOption}
+            />
+          </>
+        ) : null}
+
+        {presentation.aggregateFeatures && features?.length ? (
+          <>
+            <Pressable
+              onPress={handleOpenFeatures}
+              disabled={disabled}
+              style={styles.modeIconBadge}
+              accessibilityRole="button"
+              accessibilityLabel={t("agentControls.features.open")}
+              testID="agent-controls-features"
+            >
+              <ComposerToolbarGlyph size={glyphSize}>
+                <Settings2 size={glyphSize} color={theme.colors.foregroundMuted} />
+              </ComposerToolbarGlyph>
+            </Pressable>
+            <AdaptiveModalSheet
+              header={featuresSheetHeader}
+              visible={activeSheet === "features"}
+              onClose={handleCloseSheet}
+              testID="agent-features-sheet"
+            >
+              {features.map((feature) => (
+                <SheetFeatureItem
+                  key={`feature-${feature.id}`}
+                  feature={feature}
+                  disabled={disabled}
+                  openSelector={openSelector}
+                  handleOpenChange={handleNestedOpenChange}
+                  onSetFeature={onSetFeature}
+                />
+              ))}
+            </AdaptiveModalSheet>
+          </>
+        ) : (
+          features?.map((feature) => (
+            <DesktopFeatureItem
+              key={`feature-${feature.id}`}
+              feature={feature}
+              disabled={disabled}
+              openSelector={openSelector}
+              handleOpenChange={handleOpenChange}
+              onSetFeature={onSetFeature}
+              onActionComplete={onDropdownClose}
+            />
+          ))
+        )}
+      </View>
     </>
   );
 }
@@ -1290,7 +1297,7 @@ function SheetAgentControlsContent(props: SheetAgentControlsContentProps) {
         <>
           <AgentControlTrigger
             ref={thinkingAnchorRef}
-            icon={ThinkingIcon}
+            icon={Zap}
             surface="sheet"
             label={t("agentControls.thinking.title")}
             value={displayThinking}
@@ -1606,7 +1613,7 @@ function ThinkingComboboxOption({
   onPress: () => void;
   iconColor: string;
 }) {
-  const leadingSlot = useMemo(() => <ThinkingIcon size={16} color={iconColor} />, [iconColor]);
+  const leadingSlot = useMemo(() => <Zap size={16} color={iconColor} />, [iconColor]);
   return (
     <ComboboxItem
       label={option.label}
@@ -2078,6 +2085,16 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
     overflow: "hidden",
+  },
+  // Pushed to the row's right edge with `marginLeft: auto` — see the comment at the top of
+  // `DesktopAgentControlsContent`'s return.
+  trailingControls: {
+    minWidth: 0,
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+    marginLeft: "auto",
   },
   modeBadge: {
     height: 28,
