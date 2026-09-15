@@ -10,6 +10,8 @@ Paseo is minimal, spacious, quiet, confident. Whitespace is deliberate. Nothing 
 
 The app is calm so the user's work is not. Every visual decision serves either _act on this_ or _understand this_ — never _look at this_.
 
+The light theme carries that calm as warmth: warm off-white chrome (sidebar, cards, dividers) around a pure white working surface, separated by hairline borders instead of shadows.
+
 Consistency comes from component reuse, not from hand-matching styles across surfaces. A row in the projects list, a row in settings, and a row in a modal are the same component, not three implementations that happen to look alike. When two surfaces do the same semantic thing in two different ways, one of them is wrong.
 
 ---

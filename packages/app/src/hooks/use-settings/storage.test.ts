@@ -153,6 +153,18 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.theme).toBe(name);
   });
 
+  it("migrates a stored paper theme preference to light", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ theme: "paper" }),
+      }),
+    });
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.theme).toBe("light");
+  });
+
   it("seeds storage with the client defaults when nothing is persisted", async () => {
     const deps = makeDeps();
 

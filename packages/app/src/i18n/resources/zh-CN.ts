@@ -2139,7 +2139,6 @@ export const zhCN: TranslationResources = {
         options: {
           light: "Light",
           dark: "Dark",
-          paper: "Paper",
           zinc: "Zinc",
           midnight: "Midnight",
           claude: "Claude",
