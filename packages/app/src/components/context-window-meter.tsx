@@ -63,12 +63,9 @@ function getMeterColors(
   percentage: number,
   theme: ReturnType<typeof useUnistyles>["theme"],
 ): { progress: string; track: string } {
-  const track = theme.colors.surface3;
-  if (percentage > 90) {
-    return { progress: theme.colors.destructive, track };
-  }
-  if (percentage >= 70) {
-    return { progress: theme.colors.palette.amber[500], track };
+  const track = theme.colors.foregroundExtraMuted;
+  if (percentage > 80) {
+    return { progress: theme.colors.statusWarning, track };
   }
   return { progress: theme.colors.foregroundMuted, track };
 }
@@ -149,7 +146,7 @@ export function ContextWindowMeter({
             cy={geometry.center}
             r={geometry.radius}
             fill="none"
-            stroke={theme.colors.surface3}
+            stroke={theme.colors.foregroundExtraMuted}
             strokeWidth={geometry.strokeWidth}
           />
         </Svg>

@@ -1,10 +1,19 @@
-import { forwardRef, useCallback, type ComponentProps } from "react";
+import { forwardRef, useCallback, type ComponentProps, type ReactNode } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { ChevronDown } from "lucide-react-native";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
 import { useComposerControlLayout } from "@/composer/agent-controls/layout-context";
+import { COMPOSER_TOOLBAR_GEOMETRY } from "@/composer/agent-controls/layout";
 import { ComposerToolbarGlyph } from "@/composer/agent-controls/glyph";
 import type { AgentControlIcon } from "@/agent-controls/icons";
+import type { Theme } from "@/styles/theme";
+
+// Quieter than the combobox's own default 14px chevron (docs/design.md §16's
+// 28px ghost pill geometry). components/ui/combobox-trigger.tsx is out of scope
+// for this pass, so the toolbar pill overrides its chevron slot directly.
+const chevronColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const ThemedChevronDown = withUnistyles(ChevronDown);
 
 type AgentControlTriggerProps = Omit<
   ComponentProps<typeof ComboboxTrigger>,
@@ -54,11 +63,24 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
         isSheet ? styles.sheetRow : styles.toolbarControl,
         !isSheet && !showToolbarLabel && styles.toolbarIconOnly,
         hovered && (isSheet ? styles.sheetRowInteractive : styles.hovered),
-        (pressed || open) && (isSheet ? styles.sheetRowInteractive : styles.pressed),
+        (pressed || open) && (isSheet ? styles.sheetRowInteractive : styles.open),
         disabled && styles.disabled,
       ],
       [disabled, isSheet, open, showToolbarLabel],
     );
+    let chevron: ReactNode;
+    if (isSheet) {
+      chevron = showCaret ? undefined : null;
+    } else if (showCaret) {
+      chevron = (
+        <ThemedChevronDown
+          size={COMPOSER_TOOLBAR_GEOMETRY.caretSize}
+          uniProps={chevronColorMapping}
+        />
+      );
+    } else {
+      chevron = null;
+    }
 
     return (
       <ComboboxTrigger
@@ -71,7 +93,7 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         testID={testID}
-        chevron={showCaret ? undefined : null}
+        chevron={chevron}
       >
         {isSheet ? (
           <View style={styles.sheetGlyph}>
@@ -125,7 +147,7 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.normal,
   },
   sheetRow: {
@@ -165,10 +187,10 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: theme.fontWeight.normal,
   },
   hovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.interactionHighlight,
   },
-  pressed: {
-    backgroundColor: theme.colors.surface0,
+  open: {
+    backgroundColor: theme.colors.surface2,
   },
   disabled: {
     opacity: 0.5,

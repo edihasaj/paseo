@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
-export function ComposerToolbarGlyph({ children, size }: { children: ReactNode; size: number }) {
+// `resolveComposerToolbarGlyphSize` returns `ICON_SIZE.sm` (14) on every
+// platform, so one fixed envelope replaces the old per-platform branch.
+export function ComposerToolbarGlyph({ children }: { children: ReactNode; size?: number }) {
   return (
     <View
-      style={size >= 20 ? styles.native : styles.web}
+      style={styles.envelope}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       pointerEvents="none"
@@ -15,16 +17,9 @@ export function ComposerToolbarGlyph({ children, size }: { children: ReactNode; 
 }
 
 const styles = StyleSheet.create({
-  web: {
+  envelope: {
     width: 16,
     height: 16,
-    flexShrink: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  native: {
-    width: 20,
-    height: 20,
     flexShrink: 0,
     alignItems: "center",
     justifyContent: "center",
