@@ -8,15 +8,13 @@
  * - paseo --help shows commands
  */
 
-import { $ } from "zx";
-
-$.verbose = false;
+import { runLocalPaseo } from "./helpers/local-cli.ts";
 
 console.log("📋 Phase 1: Foundation Tests\n");
 
 // Test 1.1: --version outputs version
 console.log("  Testing paseo --version...");
-const versionResult = await $`paseo --version`.nothrow();
+const versionResult = await runLocalPaseo(["--version"]);
 if (versionResult.exitCode !== 0) {
   console.error("  ❌ paseo --version failed with exit code", versionResult.exitCode);
   console.error("     stderr:", versionResult.stderr);
@@ -32,7 +30,7 @@ console.log("  ✅ paseo --version outputs:", versionOutput);
 
 // Test 1.2: --help shows commands
 console.log("  Testing paseo --help...");
-const helpResult = await $`paseo --help`.nothrow();
+const helpResult = await runLocalPaseo(["--help"]);
 if (helpResult.exitCode !== 0) {
   console.error("  ❌ paseo --help failed with exit code", helpResult.exitCode);
   console.error("     stderr:", helpResult.stderr);
