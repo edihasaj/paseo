@@ -98,7 +98,8 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface1,
     borderRadius: theme.borderRadius.xl,
     borderWidth: 1,
-    borderColor: theme.colors.surface2,
+    borderColor: theme.colors.borderAccent,
+    ...theme.shadow.lg,
   },
   headerContainer: {
     borderBottomWidth: 1,
@@ -523,8 +524,8 @@ export function AdaptiveModalSheet({
     </View>
   ) : null;
   const handleIndicatorStyle = useMemo(
-    () => ({ backgroundColor: theme.colors.palette.zinc[600] }),
-    [theme.colors.palette.zinc],
+    () => ({ backgroundColor: theme.colors.border }),
+    [theme.colors.border],
   );
   const { sheetRef, handleSheetChange, handleSheetDismiss } = useIsolatedBottomSheetVisibility({
     visible,
