@@ -39,6 +39,7 @@ catalog probe. `PASEO_PROVIDER_REFRESH_TIMEOUT_MS` sets it when the config field
 - [Z.AI (Zhipu) coding plan](#zai-zhipu-coding-plan)
 - [Alibaba Cloud (Qwen) coding plan](#alibaba-cloud-qwen-coding-plan)
 - [Codex with a custom OpenAI-compatible endpoint](#codex-with-a-custom-openai-compatible-endpoint)
+- [Local Qwen on DGX Spark via LiteLLM (Stroll)](#local-qwen-on-dgx-spark-via-litellm-stroll)
 - [Multiple profiles for the same provider](#multiple-profiles-for-the-same-provider)
 - [Custom binary for a provider](#custom-binary-for-a-provider)
 - [Disabling a provider](#disabling-a-provider)
@@ -252,6 +253,132 @@ requires_openai_auth = false
 - Set `models` explicitly. Custom endpoints expose their own model IDs (`anthropic/claude-opus-4-7`, `qwen/qwen3-coder`, `local/llama`, etc.), and Paseo does not discover them automatically for Codex.
 - To run multiple endpoints side-by-side, define multiple entries that each extend `"codex"` with different IDs, labels, and env. Each appears as its own provider in the app.
 - If you only want to override the binary (e.g. a nightly Codex build) without changing the endpoint, omit `OPENAI_BASE_URL` and use `command` instead — see [Custom binary for a provider](#custom-binary-for-a-provider).
+
+---
+
+## Local Qwen on DGX Spark via LiteLLM (Stroll)
+
+Two NVIDIA DGX Sparks serving Qwen3.8-Flash-Next (NVFP4, vLLM or SGLang) sit behind a
+LiteLLM router at `http://127.0.0.1:4000`, with an OpenAI-compatible API and
+`--reasoning-parser` on. This is a worker deployment, not a chat provider: no traffic from
+these workers may reach OpenAI. Local endpoints only, `requires_openai_auth = false`, no
+telemetry.
+
+**Not yet validated on GB10 hardware.** The Sparks were not reachable when these entries
+were written. Nothing here has been benchmarked or run end to end — treat every field below
+as unverified until you've completed a real session against it.
+
+Ready-to-paste versions of both entries below live in
+[`docs/examples/stroll-local-qwen.settings.json`](examples/stroll-local-qwen.settings.json).
+
+### Pi (recommended for 24/7 workers)
+
+Pi is the open-source SDK Paseo is closest to, and it gives you session and compaction
+control that a black-box CLI doesn't. Extend `pi` in `config.json`:
+
+```json
+{
+  "agents": {
+    "providers": {
+      "qwen-spark-pi": {
+        "extends": "pi",
+        "label": "Qwen (Spark, Pi)",
+        "models": [
+          {
+            "id": "qwen-spark/qwen3.8-flash-next",
+            "label": "Qwen3.8-Flash-Next (Spark)",
+            "isDefault": true
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+Pi resolves custom OpenAI-compatible models from its own config, not from Paseo's
+`config.json` — add a matching entry to `~/.pi/agent/models.json` ([pi.dev/docs/latest/models](https://pi.dev/docs/latest/models)):
+
+```json
+{
+  "providers": {
+    "qwen-spark": {
+      "baseUrl": "http://127.0.0.1:4000/v1",
+      "api": "openai-completions",
+      "apiKey": "<litellm-master-key>",
+      "models": [
+        {
+          "id": "qwen3.8-flash-next",
+          "name": "Qwen3.8-Flash-Next (Spark)",
+          "contextWindow": 131072,
+          "reasoning": true
+        }
+      ]
+    }
+  }
+}
+```
+
+`contextWindow` above is a placeholder — confirm it against the served model card once the
+Sparks are reachable. `reasoning: true` turns on Pi's extended-thinking handling for this
+model. If the vLLM/SGLang server rejects the `developer` role Pi sends for reasoning models,
+add `"compat": { "supportsDeveloperRole": false }` at the provider or model level so Pi falls
+back to a plain `system` message. That file reloads on `/model`; no restart needed.
+
+### Codex
+
+Extend `codex` per [Codex with a custom OpenAI-compatible endpoint](#codex-with-a-custom-openai-compatible-endpoint) above:
+
+```json
+{
+  "agents": {
+    "providers": {
+      "qwen-spark-codex": {
+        "extends": "codex",
+        "label": "Qwen (Spark, Codex)",
+        "env": {
+          "OPENAI_BASE_URL": "http://127.0.0.1:4000/v1",
+          "OPENAI_API_KEY": "<litellm-master-key>"
+        },
+        "models": [
+          {
+            "id": "qwen3.8-flash-next",
+            "label": "Qwen3.8-Flash-Next (Spark)",
+            "isDefault": true,
+            "thinkingOptions": [
+              { "id": "low", "label": "Low" },
+              { "id": "medium", "label": "Medium", "isDefault": true },
+              { "id": "high", "label": "High" }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+The `thinkingOptions` ids are passed straight through to Codex as `reasoning_effort` (see
+[Thinking option](#thinking-option) below) — they only do something if the router and the
+served model honor that field; unconfirmed against this stack. Codex also requires the
+Responses API, not just chat completions ([Notes](#notes)); whether this LiteLLM route
+exposes a Responses-compatible surface for a local vLLM/SGLang backend is unconfirmed.
+
+### Which one, and why
+
+Pi is the default recommendation for an unattended, always-on worker: it's the open SDK,
+Paseo's wiring for it is direct (`env` + `models` only, no config injection), and there's no
+hidden auxiliary traffic to account for. Codex is a closed-source CLI binary Paseo spawns and
+configures via `OPENAI_BASE_URL`/`OPENAI_API_KEY` — that wiring itself makes no calls outside
+`OPENAI_BASE_URL`, but the `codex` binary's own update checks and telemetry are outside
+Paseo's control and unaudited here. Before running Codex against these workers, audit the
+installed `codex` binary for any outbound calls that bypass `OPENAI_BASE_URL` and disable
+them.
+
+Settings that keep egress local for either path: `OPENAI_BASE_URL` / Pi's `baseUrl` pointed at
+`127.0.0.1:4000`, no `ANTHROPIC_*` env left over from another provider, and no cloud fallback
+route configured on the LiteLLM side (see the `litellm-router` integration in the `lokai`
+repo).
 
 ---
 

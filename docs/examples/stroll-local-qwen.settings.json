@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "agents": {
+    "providers": {
+      "qwen-spark-pi": {
+        "extends": "pi",
+        "label": "Qwen (Spark, Pi)",
+        "description": "Pi against a DGX Spark Qwen3.8-Flash-Next endpoint via LiteLLM. Recommended for 24/7 workers -- open SDK, session/compaction control. Requires a matching entry in ~/.pi/agent/models.json, see docs/custom-providers.md.",
+        "models": [
+          {
+            "id": "qwen-spark/qwen3.8-flash-next",
+            "label": "Qwen3.8-Flash-Next (Spark)",
+            "isDefault": true
+          }
+        ]
+      },
+      "qwen-spark-codex": {
+        "extends": "codex",
+        "label": "Qwen (Spark, Codex)",
+        "description": "Codex against a DGX Spark Qwen3.8-Flash-Next endpoint via LiteLLM. Codex speaks the Responses API and runs auxiliary calls Pi does not -- audit before trusting it with unattended, always-on workers.",
+        "env": {
+          "OPENAI_BASE_URL": "http://127.0.0.1:4000/v1",
+          "OPENAI_API_KEY": "<litellm-master-key>"
+        },
+        "models": [
+          {
+            "id": "qwen3.8-flash-next",
+            "label": "Qwen3.8-Flash-Next (Spark)",
+            "isDefault": true,
+            "thinkingOptions": [
+              { "id": "low", "label": "Low" },
+              { "id": "medium", "label": "Medium", "isDefault": true },
+              { "id": "high", "label": "High" }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}
