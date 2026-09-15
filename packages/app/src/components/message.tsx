@@ -81,6 +81,7 @@ import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-con
 import { useHostBadges } from "@/hosts/use-host-badges";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import { identityColor } from "@/styles/identity-colors";
+import { CONTENT_SURFACE_DATASET } from "@/styles/content-surface";
 import { resolveUserMessageAvatarColorName } from "./user-message-identity";
 import { StrollLogo } from "@/components/icons/stroll-logo";
 import { PlanCard } from "./plan-card";
@@ -623,7 +624,7 @@ export const UserMessage = memo(function UserMessage({
             </View>
           ) : null}
           {hasText ? (
-            <Text selectable style={userMessageStylesheet.text}>
+            <Text selectable dataSet={CONTENT_SURFACE_DATASET} style={userMessageStylesheet.text}>
               {message}
             </Text>
           ) : null}
@@ -2104,8 +2105,12 @@ export const AssistantMessage = memo(function AssistantMessage({
   const revealDataSet = useMemo(
     () =>
       isRenderProfileEnabled()
-        ? { revealKey: occurrenceKey, revealLength: String(revealedMessage.length) }
-        : undefined,
+        ? {
+            ...CONTENT_SURFACE_DATASET,
+            revealKey: occurrenceKey,
+            revealLength: String(revealedMessage.length),
+          }
+        : CONTENT_SURFACE_DATASET,
     [occurrenceKey, revealedMessage.length],
   );
 
@@ -2222,7 +2227,9 @@ export const SpeakMessage = memo(function SpeakMessage({
         <ThemedMicVocal size={12} uniProps={foregroundMutedColorMapping} />
         <Text style={speakMessageStylesheet.headerLabel}>{t("message.speak.header")}</Text>
       </View>
-      <Text style={speakMessageStylesheet.text}>{message}</Text>
+      <Text dataSet={CONTENT_SURFACE_DATASET} style={speakMessageStylesheet.text}>
+        {message}
+      </Text>
     </View>
   );
 });

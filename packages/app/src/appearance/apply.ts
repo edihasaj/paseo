@@ -105,7 +105,7 @@ export function applyAppearance(input: AppearanceInput): void {
     });
   }
 
-  // Web: apply the UI font app-wide (RN-web stamps a default font on every text
-  // element, so it can't be done through the theme alone). No-op on native.
-  applyRootUiFont(ui);
+  // Web: apply the UI and content fonts app-wide (RN-web stamps a default font on
+  // every text element, so it can't be done through the theme alone). No-op on native.
+  applyRootUiFont(ui, content);
 }
