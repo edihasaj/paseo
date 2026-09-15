@@ -1824,6 +1824,7 @@ export const ptBR: TranslationResources = {
     pillLabelNeedsInputOne: "1 precisa de resposta",
     pillLabelNeedsInputMany: "{{count}} precisam de resposta",
     pillLabelReadyToReview: "{{count}} para revisar",
+    runningCount: "{{count}} running",
     detachAction: "Desanexar {{label}}",
     detachTooltip: "Desanexar subagente",
     archiveAction: "Arquivar {{label}}",

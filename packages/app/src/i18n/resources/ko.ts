@@ -1802,6 +1802,7 @@ export const ko: TranslationResources = {
     pillLabelNeedsInputOne: "1개 입력 필요",
     pillLabelNeedsInputMany: "{{count}}개 입력 필요",
     pillLabelReadyToReview: "{{count}}개 검토 대기",
+    runningCount: "{{count}} running",
     detachAction: "{{label}} 분리",
     detachTooltip: "하위 에이전트 분리",
     archiveAction: "{{label}} 보관",
