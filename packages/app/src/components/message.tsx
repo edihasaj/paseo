@@ -177,6 +177,13 @@ const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const ThemedNotificationInfo = withUnistyles(Info);
 const ThemedNotificationWarning = withUnistyles(TriangleAlertIcon);
 const ThemedNotificationError = withUnistyles(XCircle);
+// StrollLogo's default (no `color` prop) branch wraps react-native-svg's <Path> in
+// withUnistyles, which emits a `<div style="display:contents">` between <svg> and
+// <path> on web — invalid SVG content that Chromium silently refuses to paint, so the
+// mark never renders. Wrapping the outer <Svg>-returning component instead keeps the
+// injected div outside the <svg> tag (a valid div > svg nesting) and reaches the
+// plain, unwrapped <Path> branch inside StrollLogo by supplying `color` via `uniProps`.
+const ThemedStrollLogo = withUnistyles(StrollLogo);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -842,7 +849,14 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     width: 20,
     // Bleeds into the row's own leading gutter instead of indenting the prose column,
     // so the text keeps the same left rail as the tool activity row and the composer.
-    marginLeft: -(20 + theme.spacing[2]),
+    // The bleed only has room to spare when the transcript is centered inside
+    // MAX_CONTENT_WIDTH (agent-stream/view.tsx); once the pane is narrower than that
+    // (a pinned sidebar plus a not-yet-compact desktop window), the transcript fills
+    // the pane edge-to-edge and its guaranteed padding is 24px (spacing[4] list padding
+    // + spacing[2] wrapper padding). A full-size bleed of 28px pushed the mark 4px past
+    // that edge, clipping it under the sidebar. Keep this under 24px so the mark never
+    // crosses the pane's own left edge at any width.
+    marginLeft: -(20 + theme.spacing[0.5]),
     marginRight: theme.spacing[2],
   },
   // Optical alignment to the cap-height of the first prose line, not the block's own
@@ -2145,7 +2159,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         // and the user bubble's right rail — only the mark moves, never the column.
         <View style={assistantMessageStylesheet.markRow}>
           <View style={markColumnStyle}>
-            <StrollLogo size={20} />
+            <ThemedStrollLogo size={20} uniProps={foregroundColorMapping} />
           </View>
           <View style={assistantMessageStylesheet.markProseColumn}>{prose}</View>
         </View>
