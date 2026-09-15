@@ -3,8 +3,10 @@ import { resolveSyntaxColors, type SyntaxThemeId } from "@getpaseo/highlight";
 import {
   DEFAULT_UI_FONT_STACK,
   DEFAULT_MONO_FONT_STACK,
+  DEFAULT_SERIF_FONT_STACK,
   FONT_SIZE,
   REGISTERED_THEMES,
+  type ProseFontPreference,
   type Theme,
 } from "@/styles/theme";
 import { applyRootUiFont } from "./apply-root-font";
@@ -17,6 +19,7 @@ export interface AppearanceInput {
   uiBaseFontSize: number; // already clamped
   contentFontSize: number; // already clamped
   codeFontSize: number; // already clamped
+  proseFont: ProseFontPreference;
   syntaxTheme: SyntaxThemeId;
 }
 
@@ -62,6 +65,9 @@ function scaleFontSize(
 export function applyAppearance(input: AppearanceInput): void {
   const ui = input.uiFontFamily.trim() || DEFAULT_UI_FONT_STACK;
   const mono = input.monoFontFamily.trim() || DEFAULT_MONO_FONT_STACK;
+  // "System" mirrors the interface font rather than a fixed stack, so a custom UI font
+  // family carries over to prose too; "Serif" is the one family this setting owns.
+  const content = input.proseFont === "serif" ? DEFAULT_SERIF_FONT_STACK : ui;
   const diffLineHeight = Math.round(input.codeFontSize * 1.5); // couple to code size
   const activeTheme = UnistylesRuntime.themeName;
   // Unistyles web emits after each registry patch. Updating the mounted theme
@@ -73,7 +79,7 @@ export function applyAppearance(input: AppearanceInput): void {
 
   for (const key of themeKeys) {
     UnistylesRuntime.updateTheme(key, (t) => {
-      const fontFamily = { ui, mono };
+      const fontFamily = { ui, mono, content };
       const fontSize = scaleFontSize(
         input.uiBaseFontSize,
         input.contentFontSize,

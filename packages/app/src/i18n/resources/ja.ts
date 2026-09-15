@@ -2204,6 +2204,13 @@ export const ja: TranslationResources = {
         contentSize: "コンテンツサイズ",
         contentSizeHint: "チャットテキストとレンダリングされた Markdown に使用されます",
         contentSizeAccessibility: "コンテンツのフォントサイズ",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "コードフォント",
         codeFontHint:
           "コード、差分、ターミナル出力で使用されます。システムデフォルトにするには空のままにしてください",

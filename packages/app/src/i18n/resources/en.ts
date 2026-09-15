@@ -2306,6 +2306,13 @@ export const en = {
         contentSize: "Content size",
         contentSizeHint: "Used for chat text and rendered Markdown",
         contentSizeAccessibility: "Content font size",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "Code font",
         codeFontHint:
           "Used in code, diffs, and the terminal output. Leave empty for the system default",

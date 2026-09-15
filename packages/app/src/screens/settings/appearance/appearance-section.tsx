@@ -16,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
 import { SettingsCard, SettingsSwitch } from "@/components/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { useContributedThemes } from "@/appearance/provider";
@@ -40,6 +41,7 @@ import {
   PLUGIN_THEME_PREFERENCE,
   THEME_OPTIONS,
   THEME_SWATCHES,
+  type ProseFontPreference,
   type Theme,
 } from "@/styles/theme";
 import { isNative } from "@/constants/platform";
@@ -390,6 +392,37 @@ function FontFamilyRow({
   );
 }
 
+interface ProseFontRowProps {
+  value: ProseFontPreference;
+  onChange: (value: ProseFontPreference) => void;
+}
+
+function ProseFontRow({ value, onChange }: ProseFontRowProps) {
+  const { t } = useTranslation();
+  const options: SegmentedControlOption<ProseFontPreference>[] = useMemo(
+    () => [
+      { value: "system", label: t("settings.appearance.fonts.proseFontOptions.system") },
+      { value: "serif", label: t("settings.appearance.fonts.proseFontOptions.serif") },
+    ],
+    [t],
+  );
+  return (
+    <View style={styles.rowWithBorder}>
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle}>{t("settings.appearance.fonts.proseFont")}</Text>
+        <Text style={settingsStyles.rowHint}>{t("settings.appearance.fonts.proseFontHint")}</Text>
+      </View>
+      <SegmentedControl
+        options={options}
+        value={value}
+        onValueChange={onChange}
+        size="sm"
+        testID="prose-font"
+      />
+    </View>
+  );
+}
+
 interface FontSizeRowProps {
   title: string;
   hint: string;
@@ -577,6 +610,13 @@ export function AppearanceSection() {
     [updateSettings],
   );
 
+  const handleProseFontChange = useCallback(
+    (proseFont: ProseFontPreference) => {
+      void updateSettings({ proseFont });
+    },
+    [updateSettings],
+  );
+
   const commitUiFontFamily = useCallback(
     (value: string) => {
       const sanitized = sanitizeFontFamily(value);
@@ -731,6 +771,7 @@ export function AppearanceSection() {
             onChangeDraft={handleContentSizeChange}
             onCommit={commitContentSize}
           />
+          <ProseFontRow value={settings.proseFont} onChange={handleProseFontChange} />
           <FontFamilyRow
             title={t("settings.appearance.fonts.codeFont")}
             hint={t("settings.appearance.fonts.codeFontHint")}

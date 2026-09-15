@@ -2161,6 +2161,13 @@ export const zhCN: TranslationResources = {
         contentSize: "内容字号",
         contentSizeHint: "用于聊天文本和渲染后的 Markdown",
         contentSizeAccessibility: "内容字体大小",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "代码字体",
         codeFontHint: "用于代码、diff 和终端输出。留空则使用系统默认",
         codeFontAccessibility: "代码字体族",

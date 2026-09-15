@@ -9,9 +9,11 @@ import {
   DEFAULT_CLIENT_SETTINGS,
   DEFAULT_CODE_FONT_SIZE,
   DEFAULT_CONTENT_FONT_SIZE,
+  DEFAULT_PROSE_FONT,
   DEFAULT_UI_BASE_FONT_SIZE,
   defaultUiBaseFontSize,
   defaultContentFontSize,
+  defaultProseFont,
   loadAppSettingsFromStorage,
   loadSettingsFromStorage,
   parseClampedFontSize,
@@ -743,6 +745,32 @@ describe("appearance settings", () => {
     expect(defaultContentFontSize(true)).toBe(16);
     expect(defaultContentFontSize(false)).toBe(FONT_SIZE.content);
     expect(DEFAULT_CONTENT_FONT_SIZE).toBe(defaultContentFontSize(isNative));
+  });
+
+  it("defaults the prose font to system on native and serif on web/desktop", () => {
+    expect(defaultProseFont(true)).toBe("system");
+    expect(defaultProseFont(false)).toBe("serif");
+    expect(DEFAULT_PROSE_FONT).toBe(defaultProseFont(isNative));
+  });
+
+  it("persists an explicit prose font preference", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ proseFont: "serif" }),
+      }),
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).proseFont).toBe("serif");
+  });
+
+  it("falls back to the platform default prose font for an unrecognized value", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ proseFont: "comic-sans" }),
+      }),
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).proseFont).toBe(DEFAULT_PROSE_FONT);
   });
 
   it("derives and persists content size from an existing interface-size preference", async () => {

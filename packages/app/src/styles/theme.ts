@@ -642,6 +642,20 @@ export const DEFAULT_MONO_FONT_STACK: string = Platform.select({
   web: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
 });
 
+// The serif stack the "Prose font" appearance setting resolves to when the user picks
+// "Serif". Only readable content (Markdown bodies, the user's own chat text, PR prose) reads
+// this token — composer input, code, controls, and the sidebar stay on `fontFamily.ui`/`mono`.
+export const DEFAULT_SERIF_FONT_STACK: string = Platform.select({
+  ios: "Georgia",
+  android: "serif",
+  default: "'Iowan Old Style', 'Palatino Linotype', Charter, Georgia, 'Times New Roman', serif",
+  web: "'Iowan Old Style', 'Palatino Linotype', Charter, Georgia, 'Times New Roman', serif",
+});
+
+/** The "Prose font" appearance setting. "system" mirrors `fontFamily.ui`; "serif" resolves to
+ * `DEFAULT_SERIF_FONT_STACK`. */
+export type ProseFontPreference = "system" | "serif";
+
 // `fontSize`, `fontFamily`, and `lineHeight` are deliberately widened to plain
 // `number`/`string` (not narrowed by `as const`) so the appearance updater can patch
 // them at runtime via `UnistylesRuntime.updateTheme`. The remaining tokens keep their
@@ -649,7 +663,7 @@ export const DEFAULT_MONO_FONT_STACK: string = Platform.select({
 interface CommonTheme {
   spacing: typeof SPACING;
   fontSize: Record<keyof typeof FONT_SIZE, number>;
-  fontFamily: { ui: string; mono: string };
+  fontFamily: { ui: string; mono: string; content: string };
   lineHeight: Record<keyof typeof LINE_HEIGHT, number>;
   iconSize: typeof ICON_SIZE;
   fontWeight: typeof FONT_WEIGHT;
@@ -661,7 +675,13 @@ interface CommonTheme {
 const commonTheme: CommonTheme = {
   spacing: SPACING,
   fontSize: FONT_SIZE,
-  fontFamily: { ui: DEFAULT_UI_FONT_STACK, mono: DEFAULT_MONO_FONT_STACK },
+  // Seeded to the UI stack ("system"); `applyAppearance` patches this to the serif stack when
+  // the persisted "Prose font" setting is "serif".
+  fontFamily: {
+    ui: DEFAULT_UI_FONT_STACK,
+    mono: DEFAULT_MONO_FONT_STACK,
+    content: DEFAULT_UI_FONT_STACK,
+  },
   lineHeight: LINE_HEIGHT,
   iconSize: ICON_SIZE,
   fontWeight: FONT_WEIGHT,

@@ -2224,6 +2224,13 @@ export const ru: TranslationResources = {
         contentSize: "Размер содержимого",
         contentSizeHint: "Используется для текста чата и отображаемого Markdown",
         contentSizeAccessibility: "Размер шрифта содержимого",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "Шрифт кода",
         codeFontHint:
           "Используется для кода, диффов и вывода терминала. Оставьте поле пустым, чтобы использовать системный шрифт.",

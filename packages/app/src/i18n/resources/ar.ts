@@ -2185,6 +2185,13 @@ export const ar: TranslationResources = {
         contentSize: "حجم المحتوى",
         contentSizeHint: "يُستخدم لنص الدردشة وملفات Markdown المعروضة",
         contentSizeAccessibility: "حجم خط المحتوى",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "خط الكود",
         codeFontHint:
           "تستخدم في الكود والاختلافات والمخرجات الطرفية. اتركه فارغًا للإعداد الافتراضي للنظام",

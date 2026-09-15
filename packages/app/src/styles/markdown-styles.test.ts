@@ -21,6 +21,34 @@ describe("createMarkdownStyles", () => {
     });
   });
 
+  it("reads the Prose font token for body copy, headings, tables, and list markers", () => {
+    const proseTheme = {
+      ...darkTheme,
+      fontFamily: { ...darkTheme.fontFamily, content: "serif-test-stack" },
+    };
+    const styles = createMarkdownStyles(proseTheme);
+
+    expect(styles.body.fontFamily).toBe("serif-test-stack");
+    expect(styles.heading1.fontFamily).toBe("serif-test-stack");
+    expect(styles.heading6.fontFamily).toBe("serif-test-stack");
+    expect(styles.th.fontFamily).toBe("serif-test-stack");
+    expect(styles.td.fontFamily).toBe("serif-test-stack");
+    expect(styles.bullet_list_icon.fontFamily).toBe("serif-test-stack");
+    expect(styles.ordered_list_icon.fontFamily).toBe("serif-test-stack");
+  });
+
+  it("keeps code nodes on the mono font regardless of the Prose font token", () => {
+    const proseTheme = {
+      ...darkTheme,
+      fontFamily: { ...darkTheme.fontFamily, content: "serif-test-stack" },
+    };
+    const styles = createMarkdownStyles(proseTheme);
+
+    expect(styles.code_inline.fontFamily).toBe(darkTheme.fontFamily.mono);
+    expect(styles.code_block.fontFamily).toBe(darkTheme.fontFamily.mono);
+    expect(styles.fence.fontFamily).toBe(darkTheme.fontFamily.mono);
+  });
+
   it("applies shrink-and-wrap constraints to long markdown text and links", () => {
     const styles = createMarkdownStyles(darkTheme);
 

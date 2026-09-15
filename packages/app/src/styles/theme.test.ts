@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   darkPureBlackTheme,
   darkTheme,
+  DEFAULT_MONO_FONT_STACK,
+  DEFAULT_SERIF_FONT_STACK,
+  DEFAULT_UI_FONT_STACK,
   FONT_SIZE,
   getNextThemePreference,
   lightTheme,
@@ -22,6 +25,20 @@ describe("Typography scale", () => {
       "3xl": 22,
       "4xl": 26,
     });
+  });
+});
+
+describe("Prose font token", () => {
+  it("seeds fontFamily.content to the UI stack by default, distinct from mono", () => {
+    expect(darkTheme.fontFamily.content).toBe(DEFAULT_UI_FONT_STACK);
+    expect(lightTheme.fontFamily.content).toBe(DEFAULT_UI_FONT_STACK);
+    expect(darkTheme.fontFamily.content).not.toBe(DEFAULT_MONO_FONT_STACK);
+  });
+
+  it("defines a dedicated serif stack for the Prose font setting", () => {
+    expect(typeof DEFAULT_SERIF_FONT_STACK).toBe("string");
+    expect(DEFAULT_SERIF_FONT_STACK.length).toBeGreaterThan(0);
+    expect(DEFAULT_SERIF_FONT_STACK).not.toBe(DEFAULT_UI_FONT_STACK);
   });
 });
 

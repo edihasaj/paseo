@@ -31,6 +31,7 @@ export function createMarkdownStyles(theme: Theme) {
     body: {
       ...webSelectableTextStyle,
       color: theme.colors.foreground,
+      fontFamily: theme.fontFamily.content,
       fontSize: theme.fontSize.content,
       // Prose line-height scales with the content size, not the
       // code-size-coupled lineHeight.diff token used by code/diff surfaces.
@@ -65,6 +66,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading1: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "4xl"),
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.foreground,
@@ -78,6 +80,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading2: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "3xl"),
       fontWeight: theme.fontWeight.bold,
       color: theme.colors.foreground,
@@ -91,6 +94,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading3: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "2xl"),
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.foreground,
@@ -101,6 +105,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading4: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "xl"),
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.foreground,
@@ -111,6 +116,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading5: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "lg"),
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.foreground,
@@ -121,6 +127,7 @@ export function createMarkdownStyles(theme: Theme) {
 
     heading6: {
       ...webSelectableTextStyle,
+      fontFamily: theme.fontFamily.content,
       fontSize: contentHeadingSize(theme.fontSize.content, "lg"),
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.foregroundMuted,
@@ -241,6 +248,7 @@ export function createMarkdownStyles(theme: Theme) {
       backgroundColor: theme.colors.surface2,
       fontWeight: theme.fontWeight.semibold,
       color: theme.colors.foreground,
+      fontFamily: theme.fontFamily.content,
       fontSize: theme.fontSize.content,
       textAlign: "left" as const,
     },
@@ -257,6 +265,7 @@ export function createMarkdownStyles(theme: Theme) {
       borderRightWidth: 1,
       borderColor: theme.colors.border,
       color: theme.colors.foreground,
+      fontFamily: theme.fontFamily.content,
       fontSize: theme.fontSize.content,
       flex: 1,
     },
@@ -296,6 +305,7 @@ export function createMarkdownStyles(theme: Theme) {
       ...webSelectableTextStyle,
       color: theme.colors.foregroundMuted,
       marginRight: 4,
+      fontFamily: theme.fontFamily.content,
       fontSize: theme.fontSize.content,
       lineHeight: Math.round(theme.fontSize.content * 1.4),
     },
@@ -304,6 +314,7 @@ export function createMarkdownStyles(theme: Theme) {
       ...webSelectableTextStyle,
       color: theme.colors.foregroundMuted,
       marginRight: 4,
+      fontFamily: theme.fontFamily.content,
       fontSize: theme.fontSize.content,
       fontWeight: theme.fontWeight.normal,
       lineHeight: Math.round(theme.fontSize.content * 1.4),

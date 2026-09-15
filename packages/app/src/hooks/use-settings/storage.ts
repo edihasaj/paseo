@@ -18,6 +18,7 @@ import {
   FONT_SIZE,
   PLUGIN_THEME_PREFERENCE,
   THEME_OPTIONS,
+  type ProseFontPreference,
   type ThemePreference,
 } from "@/styles/theme";
 import { z } from "zod";
@@ -63,6 +64,13 @@ export const DEFAULT_CODE_FONT_SIZE = 12; // == FONT_SIZE.code
 export const MIN_CODE_FONT_SIZE = 9;
 export const MAX_CODE_FONT_SIZE = 22; // line-height 1.5×22=33 stays safe
 export const MAX_FONT_FAMILY_LENGTH = 200;
+/** A touch device is held in the hand; the platform system font already reads as prose there.
+ * Web and desktop are held further away, where a serif face reads more like a document. */
+export function defaultProseFont(native: boolean): ProseFontPreference {
+  return native ? "system" : "serif";
+}
+
+export const DEFAULT_PROSE_FONT = defaultProseFont(isNative);
 
 export interface AppSettings {
   theme: ThemePreference;
@@ -78,6 +86,9 @@ export interface AppSettings {
   uiBaseFontSize: number; // clamped px, platform default 14 or 15
   contentFontSize: number; // clamped px, platform default 15 or 16
   codeFontSize: number; // clamped px, default 12
+  /** Font family for readable content (Markdown bodies, user chat text, PR prose). Composer
+   * input, code, controls, and the sidebar stay on `uiFontFamily`/`monoFontFamily`. */
+  proseFont: ProseFontPreference; // platform default "serif" (web/desktop) or "system" (native)
   syntaxTheme: SyntaxThemeId; // default "one"
   workspaceTitleSource: WorkspaceTitleSource;
   sidebarWorkspaceTrailing: SidebarWorkspaceTrailing;
@@ -132,6 +143,7 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   uiBaseFontSize: DEFAULT_UI_BASE_FONT_SIZE,
   contentFontSize: DEFAULT_CONTENT_FONT_SIZE,
   codeFontSize: DEFAULT_CODE_FONT_SIZE,
+  proseFont: DEFAULT_PROSE_FONT,
   syntaxTheme: "one",
   workspaceTitleSource: "title",
   sidebarWorkspaceTrailing: "diff",
@@ -218,6 +230,7 @@ const StoredAppSettingsSchema = z
     codeFontSize: clampedNumber(MIN_CODE_FONT_SIZE, MAX_CODE_FONT_SIZE).catch(
       DEFAULT_CODE_FONT_SIZE,
     ),
+    proseFont: z.enum(["system", "serif"]).catch(DEFAULT_PROSE_FONT),
     syntaxTheme: z.string().refine(isSyntaxThemeId).catch("one"),
     workspaceTitleSource: z.enum(["title", "branch"]).catch("title"),
     sidebarWorkspaceTrailing: z.enum(["diff", "timestamp", "none"]).catch("diff"),

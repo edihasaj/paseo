@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { darkHighlightColors, resolveSyntaxColors } from "@getpaseo/highlight";
-import { DEFAULT_UI_FONT_STACK, REGISTERED_THEMES } from "@/styles/theme";
+import { DEFAULT_SERIF_FONT_STACK, DEFAULT_UI_FONT_STACK, REGISTERED_THEMES } from "@/styles/theme";
 import { applyAppearance, type AppearanceInput } from "./apply";
 
 // Override the global react-native-unistyles mock (vitest.setup.ts) so that
@@ -24,7 +24,7 @@ type ThemeUpdater = (theme: FakeTheme) => FakeTheme;
 // fake of this shape through `unknown` to ThemeUpdater's param is test-only.
 interface FakeTheme {
   colorScheme: "light" | "dark";
-  fontFamily: { ui: string; mono: string };
+  fontFamily: { ui: string; mono: string; content: string };
   fontSize: {
     code: number;
     content: number;
@@ -43,7 +43,7 @@ interface FakeTheme {
 function makeFakeTheme(): FakeTheme {
   return {
     colorScheme: "dark",
-    fontFamily: { ui: "seed-ui-stack", mono: "seed-mono-stack" },
+    fontFamily: { ui: "seed-ui-stack", mono: "seed-mono-stack", content: "seed-content-stack" },
     fontSize: {
       code: 12,
       content: 15,
@@ -67,6 +67,7 @@ function makeInput(overrides: Partial<AppearanceInput> = {}): AppearanceInput {
     uiBaseFontSize: 14,
     contentFontSize: 15,
     codeFontSize: 12,
+    proseFont: "system",
     syntaxTheme: "one",
     ...overrides,
   };
@@ -112,6 +113,18 @@ describe("applyAppearance", () => {
     applyAppearance(makeInput({ uiFontFamily: "  Menlo  " }));
 
     expect(runCapturedUpdater().fontFamily.ui).toBe("Menlo");
+  });
+
+  it("mirrors the resolved UI stack for content when proseFont is system", () => {
+    applyAppearance(makeInput({ uiFontFamily: "  Menlo  ", proseFont: "system" }));
+
+    expect(runCapturedUpdater().fontFamily.content).toBe("Menlo");
+  });
+
+  it("resolves proseFont: serif to the serif stack regardless of the UI font", () => {
+    applyAppearance(makeInput({ uiFontFamily: "  Menlo  ", proseFont: "serif" }));
+
+    expect(runCapturedUpdater().fontFamily.content).toBe(DEFAULT_SERIF_FONT_STACK);
   });
 
   it("scales the whole UI ramp proportionally while preserving ratios", () => {

@@ -2238,6 +2238,13 @@ export const es: TranslationResources = {
         contentSize: "Tamaño de contenido",
         contentSizeHint: "Se usa en el texto del chat y el Markdown renderizado",
         contentSizeAccessibility: "Tamaño de fuente de contenido",
+        proseFont: "Prose font",
+        proseFontHint: "Used for message text, rendered Markdown, and pull request prose",
+        proseFontAccessibility: "Prose font: {{value}}",
+        proseFontOptions: {
+          system: "System",
+          serif: "Serif",
+        },
         codeFont: "Fuente de código",
         codeFontHint:
           "Se utiliza en código, diferencias y salida del terminal. Déjelo vacío para el valor predeterminado del sistema.",

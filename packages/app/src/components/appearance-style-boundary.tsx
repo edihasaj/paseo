@@ -24,6 +24,7 @@ export function appearanceStyleBoundaryKey(theme: Theme): string {
   return [
     theme.fontFamily.ui,
     theme.fontFamily.mono,
+    theme.fontFamily.content,
     theme.fontSize.sm,
     theme.fontSize.base,
     theme.fontSize.lg,
