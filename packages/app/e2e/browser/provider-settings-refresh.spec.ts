@@ -28,6 +28,11 @@ async function openProviderSettingsFromModelSelector(page: Page) {
   const modelBrowser = page.getByTestId("agent-controls-model-browser-sheet");
   await expect(modelBrowser).toBeVisible({ timeout: 10_000 });
 
+  // The agent can switch providers, so the browser opens on the "Select provider"
+  // list (resolveModelSheetOpening) rather than drilling straight into the
+  // currently selected one. Drill in before the settings action is reachable.
+  await page.getByRole("button", { name: /^Mock Load Test/ }).click();
+
   await page.getByRole("button", { name: /Open .* settings/ }).click();
   await expect(page.getByTestId("provider-settings-sheet")).toBeVisible({ timeout: 10_000 });
 }
