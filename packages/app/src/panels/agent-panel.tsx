@@ -62,6 +62,7 @@ import { reconcileMissingAgentStateWithPresentAgent } from "@/panels/agent-panel
 import { TimelineSyncStatus } from "@/timeline/sync-status";
 import { usePaneContext, usePaneFocus } from "@/panels/pane-context";
 import { definePanel, type PanelDescriptor } from "@/panels/panel-registry";
+import { usePublishPanelInstanceAttributes } from "@/panels/panel-instance-attributes";
 import { RenderProfile } from "@/utils/render-profiler";
 import { useHasPluginComposerPills } from "@/plugins";
 import { buildDraftPanelDescriptor } from "@/panels/draft-panel-descriptor";
@@ -1430,6 +1431,13 @@ const AgentStreamSection = memo(function AgentStreamSection({
     return new Map(pendingPermissionList.map((permission) => [permission.key, permission]));
   }, [pendingPermissionList]);
 
+  // A reader scrolled away from the live tail loses that spot if the workspace pane's
+  // tab LRU cap evicts this tab — opening several file links remounts the chat at
+  // "initial-entry" and jumps back to the bottom. Retain the mount while not following
+  // the live tail so RetainedPanel keeps the transcript's scroll position intact.
+  const [isFollowingLatest, setIsFollowingLatest] = useState(true);
+  usePublishPanelInstanceAttributes({ modified: false, retainMount: !isFollowingLatest });
+
   return (
     <AgentStreamView
       ref={streamViewRef}
@@ -1446,6 +1454,7 @@ const AgentStreamSection = memo(function AgentStreamSection({
       pendingMessageSubmissions={pendingMessageSubmissions}
       turnPresentation={turnPresentation}
       onOpenWorkspaceFile={onOpenWorkspaceFile}
+      onFollowingLatestChange={setIsFollowingLatest}
     />
   );
 });

@@ -23,6 +23,7 @@ import type { StreamRenderInput, StreamStrategy, StreamViewportHandle } from "./
 import { useRevisedHistoryRows } from "./history-row-revision";
 import { createStreamStrategy } from "./strategy";
 import {
+  abandonHistoryStartPagination,
   abandonHistoryStartPaginationRequest,
   createHistoryStartPaginationState,
   evaluateHistoryStartPagination,
@@ -349,6 +350,15 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   const historyStartPrependAnchorRef = useRef<HistoryStartPrependAnchor | null>(null);
   const historyStartPrependAnchorActiveRef = useRef(false);
   const historyStartSettleSchedulerRef = useRef<HistoryStartSettleScheduler | null>(null);
+  // Tracks the agentId the history-start pagination state was last initialized for,
+  // independent of the effect dependency array below. A retained chat panel that gets
+  // hidden behind a react-freeze boundary (switching workspace tabs) tears down and
+  // reruns its effects on every visibility flip even though the component instance and
+  // its refs survive — see the effect below. Without this guard, becoming visible again
+  // discards in-flight/settled older-history pagination tracking and re-evaluates from a
+  // blank slate, which can restart a prepend against a stale anchor and jump the reader
+  // away from their scroll position (getpaseo/paseo#3271).
+  const historyStartInitializedAgentIdRef = useRef<string | null>(null);
   const lastActiveFollowOutputLayoutRef = useRef<ActiveFollowOutputLayout | null>(null);
   const lastObservedViewportGeometryRef = useRef<ObservedViewportGeometry | null>(null);
   const wasFollowOutputLayoutActiveRef = useRef(false);
@@ -631,6 +641,24 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     }
     cancelPendingStickToBottom();
     historyStartSettleSchedulerRef.current?.cancel();
+    // Abandon rather than pause an in-flight or settling older-history load. Its
+    // prepend anchor's viewportOffset is only meaningful across consecutive frames of
+    // the same continuous layout; once the panel goes inactive (retained but hidden
+    // behind a react-freeze boundary) and later comes back, the geometry it was
+    // measured against no longer describes anything real. Resuming a "settling"
+    // status as-is re-evaluates against whatever geometry exists at that later
+    // moment, which can chain-load another page and reapply a stale anchor
+    // correction, landing on an arbitrary offset instead of the reader's actual
+    // position (getpaseo/paseo#3271). Dropping to "ready" lets the isActive-gated
+    // evaluate effect below decide fresh whether older history is still needed once
+    // this panel is genuinely visible again with settled layout.
+    const abandoned = abandonHistoryStartPagination(historyStartPaginationStateRef.current);
+    if (abandoned !== historyStartPaginationStateRef.current) {
+      historyStartPaginationStateRef.current = abandoned;
+      setHistoryStartPaginationState(abandoned);
+    }
+    historyStartPrependAnchorRef.current = null;
+    historyStartPrependAnchorActiveRef.current = false;
     for (const frame of pendingVirtualRowMeasureFramesRef.current.values()) {
       window.cancelAnimationFrame(frame);
     }
@@ -782,6 +810,23 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   ]);
 
   useEffect(() => {
+    // This effect's dependency array does not protect against a spurious re-run: a
+    // retained chat panel hidden behind a react-freeze boundary tears down and reruns
+    // its effects on every visibility flip even when props.agentId is unchanged (see
+    // historyStartInitializedAgentIdRef's declaration above). Do the "first mount for
+    // this agent" work — resetting pagination/anchor tracking, then re-arming
+    // readiness and scheduling an evaluate one animation frame out — only for a
+    // genuinely new agent. On a spurious re-run this returns without touching
+    // anything: history-start readiness and pagination state already correctly
+    // describe this agent, the isActive-gated effect below re-evaluates once the
+    // panel is genuinely visible again with settled layout, and racing that with a
+    // premature evaluate here used stale geometry to "correct" an in-flight/settled
+    // prepend anchor, jumping the reader away from their position
+    // (getpaseo/paseo#3271).
+    if (historyStartInitializedAgentIdRef.current === props.agentId) {
+      return;
+    }
+    historyStartInitializedAgentIdRef.current = props.agentId;
     const initialHistoryStartState = createHistoryStartPaginationState();
     historyStartPaginationStateRef.current = initialHistoryStartState;
     setHistoryStartPaginationState(initialHistoryStartState);
@@ -859,6 +904,20 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     if (!isActive) {
       return;
     }
+    if (resumedUnchangedLayout && !followOutputRef.current && layout.scrollContainer) {
+      // A resumed panel with an otherwise-unchanged layout can still have lost its own
+      // scrollTop: unfreezing a react-freeze boundary detaches and reattaches this
+      // container's DOM subtree, and detaching a scrollable element resets its scroll
+      // position even though the element itself (same node, confirmed by
+      // activeFollowOutputLayoutsEqual matching scrollContainer) and this component's
+      // state survive. Restore it from the last position a real scroll event
+      // confirmed, synchronously before the browser paints, so a reader who scrolled
+      // away from the live tail does not see their place reset to the top
+      // (getpaseo/paseo#3271).
+      if (layout.scrollContainer.scrollTop !== lastKnownScrollTopRef.current) {
+        layout.scrollContainer.scrollTop = lastKnownScrollTopRef.current;
+      }
+    }
     lastActiveFollowOutputLayoutRef.current = layout;
     if (!followOutputRef.current || resumedUnchangedLayout) return;
     cancelPendingStickToBottom();
@@ -882,9 +941,19 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     }
     const resumedUnchangedLayout = resumedUnchangedLayoutRef.current;
     resumedUnchangedLayoutRef.current = false;
-    if (!resumedUnchangedLayout) {
-      updateScrollMetrics();
+    if (resumedUnchangedLayout) {
+      // The layout effect above just marked pendingResumeGeometryCheckRef pending for
+      // this same reason: resuming with an unchanged layout (e.g. a retained chat
+      // panel coming back from behind a react-freeze boundary) can commit before the
+      // browser has finished settling this container's real geometry. Reading
+      // scrollTop here anyway can misjudge "near history start" against transitional
+      // geometry and trigger an unwanted prepend, reapplying a stale anchor
+      // correction that jumps the reader away from their position
+      // (getpaseo/paseo#3271). Defer entirely to the ResizeObserver effect below,
+      // which only acts once it has observed confirmed, settled geometry.
+      return;
     }
+    updateScrollMetrics();
     evaluateHistoryStart();
     if (historyStartPaginationStateRef.current.status === "settling") {
       scheduleHistoryStartPrependSettle();

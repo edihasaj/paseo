@@ -11,6 +11,11 @@ import { clickSettingsBackToWorkspace, openCompactSettings } from "../support/he
 import { openSettings } from "../support/helpers/app";
 import { runWorkspaceActionFromCommandCenter } from "../support/helpers/command-center-workspace-actions";
 import {
+  expectTimelinePromptPositionPreserved,
+  rememberTimelinePromptPosition,
+  scrollTimelinePromptIntoView,
+} from "../support/helpers/timeline-pagination";
+import {
   clickFirstTerminalTab,
   waitForWorkspaceTabsVisible,
 } from "../support/helpers/workspace-tabs";
@@ -175,6 +180,91 @@ test.describe("Workspace pane mounting", () => {
         await clickSettingsBackToWorkspace(page);
         await expectSameRenderedNode(originalTerminal, terminalSurface);
       });
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  test("opening several linked file tabs keeps the chat reading position", async ({ page }) => {
+    // Regression for getpaseo/paseo#3271: a reader scrolled away from the live tail who
+    // clicks enough file links to exceed the pane's tab LRU cap used to lose that spot —
+    // the evicted chat tab remounted at "initial-entry" and jumped to the bottom. Anchor
+    // on a specific turn's prompt rather than a raw pixel offset: history can legitimately
+    // grow as more of the timeline hydrates, and the contract is "keep the anchored item
+    // in view", not "never let content height change" (see docs on turn anchoring in
+    // agent-timeline-pagination.spec.ts).
+    test.setTimeout(240_000);
+    const serverId = getServerId();
+    const workspace = await seedWorkspace({
+      repoPrefix: "reading-position-",
+      repo: {
+        files: [
+          { path: "alpha.md", content: "# alpha\n" },
+          { path: "beta.md", content: "# beta\n" },
+          { path: "gamma.md", content: "# gamma\n" },
+        ],
+      },
+    });
+    const fileNames = ["alpha.md", "beta.md", "gamma.md"];
+    const fileLink = (name: string) => `[${name}](file://${workspace.repoPath}/${name})`;
+    const assistantResponse = [
+      "Investigating across three modules.",
+      "",
+      `See ${fileLink("alpha.md")} for the first module.`,
+      `See ${fileLink("beta.md")} for the second module.`,
+      `See ${fileLink("gamma.md")} for the third module.`,
+      "",
+      "Repeating this analysis across turns builds up enough scrollback for the test.",
+    ].join("\n");
+    const turnPrompt = (index: number) => `reading-position-turn-${String(index).padStart(2, "0")}`;
+    const anchorPrompt = turnPrompt(20);
+
+    try {
+      const agent = await workspace.client.createAgent({
+        provider: "mock",
+        cwd: workspace.repoPath,
+        workspaceId: workspace.workspaceId,
+        title: "reading-position-regression",
+        modeId: "load-test",
+        model: "e2e-fast-stream",
+        featureValues: { mockAssistantResponse: assistantResponse },
+      });
+      for (let index = 0; index < 30; index += 1) {
+        await workspace.client.sendAgentMessage(agent.id, turnPrompt(index));
+        await workspace.client.waitForFinish(agent.id, 15_000);
+      }
+
+      await page.goto(buildHostAgentDetailRoute(serverId, agent.id, workspace.workspaceId));
+      await waitForWorkspaceTabsVisible(page);
+      await expectComposerVisible(page);
+
+      await scrollTimelinePromptIntoView(page, anchorPrompt);
+      const readingPosition = await rememberTimelinePromptPosition(page, anchorPrompt);
+
+      const chatTab = page.getByTestId(`workspace-tab-agent_${agent.id}`).first();
+      const chatScroll = page.locator('[data-testid="agent-chat-scroll"]:visible').first();
+      const originalTranscript = await captureRenderedNode(chatScroll);
+
+      const fileTabs = page.locator('[data-testid^="workspace-tab-file_"]');
+      for (const [index, fileName] of fileNames.entries()) {
+        // Mirror the real repro: click a link from the chat tab, then return to
+        // chat (as the bug report describes) before opening the next file link.
+        await chatTab.click();
+        await expect(chatTab).toHaveAttribute("aria-selected", "true");
+        const link = page
+          .getByRole("link", { name: fileName, exact: true })
+          .filter({ visible: true })
+          .first();
+        await expect(link).toBeVisible({ timeout: 15_000 });
+        await link.click();
+        await expect(fileTabs).toHaveCount(index + 1, { timeout: 15_000 });
+      }
+
+      await chatTab.click();
+      await expect(chatTab).toHaveAttribute("aria-selected", "true");
+
+      await expectSameRenderedNode(originalTranscript, chatScroll);
+      await expectTimelinePromptPositionPreserved(page, readingPosition);
     } finally {
       await workspace.cleanup();
     }

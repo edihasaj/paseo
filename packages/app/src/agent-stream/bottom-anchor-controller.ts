@@ -740,6 +740,14 @@ export function useBottomAnchorController(input: {
   const isNearBottomRef = useRef(input.isNearBottom);
   const scrollToBottomRef = useRef(input.scrollToBottom);
   const driverRef = useRef<BottomAnchorControllerDriver | null>(null);
+  // Tracks the agentId the driver was last reset for, independent of the effect
+  // dependency array below. A retained (frozen/unfrozen) chat panel tears down and
+  // reruns its effects on every visibility flip even though this component instance,
+  // its refs, and driverRef itself all survive intact — see the comment on the
+  // destroy effect. Without this guard, becoming visible again would call
+  // resetForAgent() with the same unchanged agentId, snapping a reader who scrolled
+  // away back to "sticky-bottom" and discarding their reading position.
+  const resetAppliedAgentIdRef = useRef<string | null>(null);
 
   agentIdRef.current = input.agentId;
   readinessRef.current = input.isAuthoritativeHistoryReady;
@@ -766,6 +774,10 @@ export function useBottomAnchorController(input: {
   }
 
   useEffect(() => {
+    if (resetAppliedAgentIdRef.current === input.agentId) {
+      return;
+    }
+    resetAppliedAgentIdRef.current = input.agentId;
     driverRef.current?.resetForAgent();
   }, [input.agentId]);
 
@@ -778,9 +790,17 @@ export function useBottomAnchorController(input: {
   }, [input.isAuthoritativeHistoryReady]);
 
   useEffect(() => {
+    // Cancel in-flight scroll attempts when this panel is hidden (including a
+    // react-freeze suspend, not just a real unmount), but keep driverRef pointing
+    // at the same driver instance. Nulling it here would make the mount-time
+    // `if (!driverRef.current)` check above build a brand-new driver the moment
+    // the panel unfreezes, with fresh "sticky-bottom" mode and no memory of the
+    // route request it already applied — undoing a reader's scrolled-away state
+    // on every hide/show cycle even though nothing about the agent or route
+    // actually changed. A real unmount discards this whole fiber (and the ref
+    // with it) regardless, so leaving the reference in place costs nothing there.
     return () => {
       driverRef.current?.destroy();
-      driverRef.current = null;
     };
   }, []);
 

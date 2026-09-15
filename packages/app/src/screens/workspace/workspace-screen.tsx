@@ -184,7 +184,7 @@ import {
 import { resolveCloseAgentTabPolicy } from "@/subagents";
 import {
   getPanelInstanceAttributes,
-  useModifiedPanelTabIds,
+  useRetainedPanelTabIds,
 } from "@/panels/panel-instance-attributes";
 import { findAdjacentPane } from "@/utils/split-navigation";
 import { supportsDesktopPaneSplits, useIsCompactFormFactor } from "@/constants/layout";
@@ -3604,7 +3604,7 @@ function WorkspaceScreenContent({
     [focusedPaneTabState.pane],
   );
   const focusedPaneTabIds = useMemo(() => tabs.map((tab) => tab.tabId), [tabs]);
-  const modifiedFocusedPaneTabIds = useModifiedPanelTabIds({
+  const retainedFocusedPaneTabIds = useRetainedPanelTabIds({
     serverId: normalizedServerId,
     workspaceId: normalizedWorkspaceId,
     tabIds: focusedPaneTabIds,
@@ -3613,7 +3613,7 @@ function WorkspaceScreenContent({
   const { mountedTabIds: mountedFocusedPaneTabIdsSet } = useMountedTabSet({
     activeTabId,
     allTabIds: focusedPaneTabIds,
-    retainedTabIds: modifiedFocusedPaneTabIds,
+    retainedTabIds: retainedFocusedPaneTabIds,
     cap: 3,
   });
   const mountedFocusedPaneTabIds = useMemo(
