@@ -1,8 +1,9 @@
-import { open, readFile, unlink, utimes } from "node:fs/promises";
+import { link, open, readFile, unlink, utimes, writeFile } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
 import { ensurePrivateDirectory } from "./private-files.js";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { hostname } from "node:os";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 export const pidLockInfoSchema = z.object({
@@ -126,10 +127,20 @@ async function clearExistingPidLock(
 }
 
 async function writeNewPidLock(pidPath: string, lockInfo: PidLockInfo): Promise<void> {
-  let fd;
+  // Write the fully-serialized lock to a sibling temp file first, then
+  // `link()` it into place. A plain `open("wx")` + `write()` leaves a window
+  // where the pid file exists but is still empty/partial, so a concurrent
+  // reader that only checks existence (e.g. polling for the daemon to have
+  // started) can observe a truncated file and fail to parse it. `link()` is
+  // atomic and, like the previous `wx` open, fails with EEXIST if another
+  // daemon already holds the lock, preserving the exclusivity check.
+  const tempPath = join(
+    dirname(pidPath),
+    `.${basename(pidPath)}.${process.pid}.${randomUUID()}.tmp`,
+  );
   try {
-    fd = await open(pidPath, "wx");
-    await fd.write(JSON.stringify(lockInfo));
+    await writeFile(tempPath, JSON.stringify(lockInfo), { flag: "wx" });
+    await link(tempPath, pidPath);
   } catch (error) {
     if (!isErrnoException(error) || error.code !== "EEXIST") {
       throw error;
@@ -144,7 +155,7 @@ async function writeNewPidLock(pidPath: string, lockInfo: PidLockInfo): Promise<
     }
     throw new PidLockError("Failed to acquire PID lock due to race condition");
   } finally {
-    await fd?.close();
+    await unlink(tempPath).catch(() => {});
   }
 }
 
