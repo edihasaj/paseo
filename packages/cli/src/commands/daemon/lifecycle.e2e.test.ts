@@ -97,8 +97,8 @@ async function fixture() {
   }
   // `port()` releases its probe socket before the daemon binds it, so another process on a
   // loaded CI runner can grab the same port first (classic TOCTOU). Mirrors the retry-with-a-
-  // fresh-port idiom in packages/server/src/server/test-utils/paseo-daemon.ts: on a bind
-  // failure, reconfigure `home` with a newly probed port and start again.
+  // fresh-port idiom used by the server package's own daemon test harness: on a bind failure,
+  // reconfigure `home` with a newly probed port and start again.
   async function startResilient(home: string, extraArgs: string[] = []) {
     const maxAttempts = 4;
     for (let attempt = 0; ; attempt += 1) {
