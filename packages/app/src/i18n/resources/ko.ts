@@ -91,8 +91,8 @@ export const ko: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "에이전트에게 메시지를 보내거나 @files 태그, /commands, /skills를 사용하세요",
-      mobile: "메시지, @files, /commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "메시지...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const ko: TranslationResources = {
       removeBrowserElement: "브라우저 요소 첨부 제거",
       openReview: "리뷰 첨부 열기",
       removeReview: "리뷰 첨부 제거",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "메시지를 보내지 못했습니다",

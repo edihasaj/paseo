@@ -330,6 +330,10 @@ const styles = StyleSheet.create((theme) => {
       width: "100%",
       maxWidth: MAX_CONTENT_WIDTH,
       flexDirection: "row",
+      // A full-width pill (the task progress card) forces a wrap onto the next line, so it
+      // reads as its own row above the rest of the ambient pills. Auto-width pills never trigger
+      // a wrap on their own, so single-row bars are unaffected.
+      flexWrap: "wrap",
       alignItems: "center",
       gap: theme.spacing[1],
     },

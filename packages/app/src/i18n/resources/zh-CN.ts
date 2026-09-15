@@ -91,8 +91,8 @@ export const zhCN: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "给 Agent 发消息，标记 @files，或使用 /commands 和 /skills",
-      mobile: "发消息，@files，/commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "输入消息...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const zhCN: TranslationResources = {
       removeBrowserElement: "移除浏览器元素附件",
       openReview: "打开 review 附件",
       removeReview: "移除 review 附件",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "发送消息失败",

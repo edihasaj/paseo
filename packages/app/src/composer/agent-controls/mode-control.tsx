@@ -17,6 +17,7 @@ import { resolveNextAgentModeId } from "@/composer/agent-controls/mode";
 import { useComposerKeyboardScope } from "@/composer/keyboard-scope";
 import { useComposerControlLayout } from "@/composer/agent-controls/layout-context";
 import { AgentControlTrigger } from "@/composer/agent-controls/control";
+import { isUnattendedAgentMode } from "@/composer/agent-controls/utils";
 import { useSessionStore } from "@/stores/session-store";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { mergeProviderPreferences, useFormPreferences } from "@/hooks/use-form-preferences";
@@ -102,7 +103,10 @@ export function AgentModeControl({
   }, [modeOptions, selectedModeId]);
 
   const Icon = getAgentModeIcon(provider, selectedMode?.id ?? "", providerDefinitions);
-  const iconColor = theme.colors.foregroundMuted;
+  const isUnattended = selectedMode ? isUnattendedAgentMode(selectedMode) : false;
+  const warningColor = theme.colors.statusWarning;
+  const iconColor = isUnattended ? warningColor : theme.colors.foregroundMuted;
+  const valueColor = isUnattended ? warningColor : undefined;
   const selectedModeLabel = selectedMode ? formatAgentModeLabel(selectedMode) : "";
 
   const allOptions = useMemo<ComboboxOption[]>(
@@ -202,6 +206,7 @@ export function AgentModeControl({
             surface={surface}
             label={t("agentControls.mode.title")}
             value={selectedModeLabel}
+            valueColor={valueColor}
             showToolbarLabel={presentation.showModeLabel}
             showCaret={surface === "toolbar" && presentation.showCarets}
             open={open}

@@ -91,8 +91,8 @@ export const ptBR: TranslationResources = {
   },
   composer: {
     placeholders: {
-      desktop: "Envie uma mensagem ao agente, marque @files ou use /commands e /skills",
-      mobile: "Mensagem, @files, /commands",
+      desktop: "Message Stroll",
+      mobile: "Message Stroll",
       fallback: "Mensagem...",
       terminal: "Prompt",
     },
@@ -148,6 +148,14 @@ export const ptBR: TranslationResources = {
       removeBrowserElement: "Remover anexo de elemento do navegador",
       openReview: "Abrir anexo de revisão",
       removeReview: "Remover anexo de revisão",
+    },
+    taskProgress: {
+      title: "Task progress",
+      updatedAgo: "Updated {{time}} ago",
+      updatedJustNow: "Updated just now",
+      summary: "{{updated}} · {{completed}} of {{total}}",
+      expand: "Expand task progress",
+      collapse: "Collapse task progress",
     },
     errors: {
       failedToSend: "Falha ao enviar mensagem",
