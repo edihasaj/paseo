@@ -78,6 +78,11 @@ import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-d
 import { setAssistantMarkdownBlockHeight } from "@/utils/assistant-message-height-estimate";
 import { isRenderProfileEnabled } from "@/utils/render-profiler";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
+import { useHostBadges } from "@/hosts/use-host-badges";
+import type { HostBadgeModel } from "@/hosts/appearance";
+import { identityColor } from "@/styles/identity-colors";
+import { resolveUserMessageAvatarColorName } from "./user-message-identity";
+import { StrollLogo } from "@/components/icons/stroll-logo";
 import { PlanCard } from "./plan-card";
 import { useToolCallSheet } from "./tool-call-sheet";
 import { ToolCallDetailsContent } from "./tool-call-details";
@@ -407,6 +412,29 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: STREAM_METADATA_FONT_SIZE,
   },
+  identityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-end",
+    gap: theme.spacing[1.5],
+    marginTop: theme.spacing[1],
+  },
+  identityName: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  identityAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: theme.borderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  identityAvatarInitial: {
+    color: "#ffffff",
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
+  },
 }));
 
 interface UserMessageImagePillProps {
@@ -424,6 +452,45 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
       <AttachmentThumbnail metadata={image} />
     </AttachmentFrame>
   );
+}
+
+/** Sender name + 24px identity avatar under the bubble. Desktop only, and only
+ * when the message's host has a badge (follows that host's own visibility setting). */
+function UserMessageIdentityRow({
+  hostBadge,
+  isPending,
+}: {
+  hostBadge: HostBadgeModel | null;
+  isPending: boolean;
+}) {
+  if (isPending || !hostBadge) {
+    return null;
+  }
+  const avatarColorName = resolveUserMessageAvatarColorName(hostBadge);
+  const avatarStyle = avatarColorName
+    ? [userMessageStylesheet.identityAvatar, { backgroundColor: identityColor(avatarColorName) }]
+    : userMessageStylesheet.identityAvatar;
+  return (
+    <View style={userMessageStylesheet.identityRow} testID="user-message-identity">
+      <Text style={userMessageStylesheet.identityName} numberOfLines={1}>
+        {hostBadge.label}
+      </Text>
+      <View style={avatarStyle}>
+        <Text style={userMessageStylesheet.identityAvatarInitial}>
+          {hostBadge.label.charAt(0).toLocaleUpperCase()}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** The message's host badge, following that host's own badge visibility setting. */
+function useUserMessageHostBadge(input: {
+  serverId: string | undefined;
+  enabled: boolean;
+}): HostBadgeModel | null {
+  const badges = useHostBadges({ enabled: input.enabled });
+  return badges.get(input.serverId ?? "") ?? null;
 }
 
 export const UserMessage = memo(function UserMessage({
@@ -460,6 +527,10 @@ export const UserMessage = memo(function UserMessage({
     [timestamp],
   );
   const rewindMutation = useRewindAgentMutation({ serverId, agentId, client, messageId });
+  // Sender identity is desktop-only chrome, and only ever shows what the app already
+  // knows: the host badge for this message's server, following that host's own badge
+  // visibility setting. No host badge means no identity row — never a placeholder.
+  const hostBadge = useUserMessageHostBadge({ serverId, enabled: !isCompact });
 
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
@@ -550,6 +621,7 @@ export const UserMessage = memo(function UserMessage({
             </Text>
           ) : null}
         </View>
+        <UserMessageIdentityRow hostBadge={hostBadge} isPending={isPending} />
         {hasText ? (
           <View
             style={trailingRowStyle}
@@ -762,6 +834,30 @@ interface AssistantMessageProps {
 }
 
 export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
+  markRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  markColumn: {
+    width: 20,
+    // Bleeds into the row's own leading gutter instead of indenting the prose column,
+    // so the text keeps the same left rail as the tool activity row and the composer.
+    marginLeft: -(20 + theme.spacing[2]),
+    marginRight: theme.spacing[2],
+  },
+  // Optical alignment to the cap-height of the first prose line, not the block's own
+  // padding — matches `container`'s paddingVertical, which `containerCompactTop`
+  // collapses to 0 for grouped consecutive assistant turns.
+  markColumnDefaultTop: {
+    marginTop: theme.spacing[3] + 2,
+  },
+  markColumnCompactTop: {
+    marginTop: 2,
+  },
+  markProseColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
   container: {
     paddingVertical: theme.spacing[3],
     ...(isWeb ? { userSelect: "text" as const } : {}),
@@ -1123,9 +1219,16 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
   pressablePressed: {
     opacity: 0.9,
   },
+  pressableActivitySummaryHighlighted: {
+    backgroundColor: theme.colors.interactionHighlight,
+  },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  trailingChevron: {
+    flexShrink: 0,
+    marginLeft: theme.spacing[1],
   },
   labelRow: {
     flex: 1,
@@ -1508,6 +1611,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   phase,
 }: AssistantMessageProps) {
   const { t } = useTranslation();
+  const isCompact = useIsCompactFormFactor();
   const markdownParser = useMemo(createAssistantMarkdownParser, []);
   const streamingMarkdownParser = useMemo(
     () => createAssistantMarkdownParser({ streaming: true }),
@@ -1991,37 +2095,61 @@ export const AssistantMessage = memo(function AssistantMessage({
     [occurrenceKey, revealedMessage.length],
   );
 
+  const prose = (
+    <View testID="assistant-message" dataSet={revealDataSet} style={assistantContainerStyle}>
+      {keyedBlocks.map(({ key, block, sourceOffset }, index) => (
+        <AssistantMessageBlockContainer
+          key={key}
+          block={block}
+          marginBottom={index < keyedBlocks.length - 1 ? 12 : 0}
+        >
+          <MemoizedMarkdownBlock
+            text={block}
+            sourceOffset={sourceOffset}
+            rules={markdownRules}
+            parser={
+              phase === "streaming" && index === keyedBlocks.length - 1
+                ? streamingMarkdownParser
+                : markdownParser
+            }
+            onLinkPress={handleMarkdownLinkPress}
+          />
+        </AssistantMessageBlockContainer>
+      ))}
+      {fullMessageByteLength !== null ? (
+        <Text
+          testID="assistant-message-capped-notice"
+          style={assistantMessageStylesheet.cappedNotice}
+        >
+          {t("agentStream.messageCapped", { bytes: fullMessageByteLength })}
+        </Text>
+      ) : null}
+    </View>
+  );
+
+  const hasCompactTop = spacing === "compactTop" || spacing === "compactBoth";
+  const markColumnStyle = [
+    assistantMessageStylesheet.markColumn,
+    hasCompactTop
+      ? assistantMessageStylesheet.markColumnCompactTop
+      : assistantMessageStylesheet.markColumnDefaultTop,
+  ];
+
   return (
     <StreamingWords stream={stream}>
-      <View testID="assistant-message" dataSet={revealDataSet} style={assistantContainerStyle}>
-        {keyedBlocks.map(({ key, block, sourceOffset }, index) => (
-          <AssistantMessageBlockContainer
-            key={key}
-            block={block}
-            marginBottom={index < keyedBlocks.length - 1 ? 12 : 0}
-          >
-            <MemoizedMarkdownBlock
-              text={block}
-              sourceOffset={sourceOffset}
-              rules={markdownRules}
-              parser={
-                phase === "streaming" && index === keyedBlocks.length - 1
-                  ? streamingMarkdownParser
-                  : markdownParser
-              }
-              onLinkPress={handleMarkdownLinkPress}
-            />
-          </AssistantMessageBlockContainer>
-        ))}
-        {fullMessageByteLength !== null ? (
-          <Text
-            testID="assistant-message-capped-notice"
-            style={assistantMessageStylesheet.cappedNotice}
-          >
-            {t("agentStream.messageCapped", { bytes: fullMessageByteLength })}
-          </Text>
-        ) : null}
-      </View>
+      {isCompact ? (
+        prose
+      ) : (
+        // The mark bleeds into the row's own left padding instead of indenting the
+        // prose, so assistant text keeps the same left rail as the tool activity row
+        // and the user bubble's right rail — only the mark moves, never the column.
+        <View style={assistantMessageStylesheet.markRow}>
+          <View style={markColumnStyle}>
+            <StrollLogo size={20} />
+          </View>
+          <View style={assistantMessageStylesheet.markProseColumn}>{prose}</View>
+        </View>
+      )}
     </StreamingWords>
   );
 });
@@ -2339,6 +2467,14 @@ interface ExpandableBadgeProps {
   disableOuterSpacing?: boolean;
   borderlessWhenExpanded?: boolean;
   testID?: string;
+  /**
+   * The one-line "Ran N commands, read N files..." row that collapses a whole
+   * turn's tool calls. Unlike the default badge, the leading icon never swaps
+   * for the chevron — both are fixed (leading glyph, trailing chevron), the
+   * label stays muted instead of brightening on hover, and hover/expanded
+   * state paints with `interactionHighlight` instead of a bordered fill.
+   */
+  activitySummary?: boolean;
 }
 
 interface ExpandableBadgeSecondaryLabelProps {
@@ -2566,15 +2702,26 @@ function renderExpandableBadgeIcon({
 }
 
 function renderExpandableBadgeIconSlot({
-  showChevron,
+  activitySummary,
+  isInteractive,
+  isHovered,
+  isExpanded,
   chevronStyle,
   iconNode,
 }: {
-  showChevron: boolean;
+  activitySummary: boolean;
+  isInteractive: boolean;
+  isHovered: boolean;
+  isExpanded: boolean;
   chevronStyle: StyleProp<ViewStyle>;
   iconNode: ReactNode;
 }): ReactNode {
-  if (showChevron) {
+  // The activity-summary row pins the leading glyph in place — it never swaps for
+  // the chevron, unlike the default badge (see the `activitySummary` note above).
+  if (activitySummary) {
+    return iconNode;
+  }
+  if (isInteractive && (isHovered || isExpanded)) {
     return (
       <View style={chevronStyle}>
         <ThemedChevronRightIcon size={12} uniProps={foregroundColorMapping} />
@@ -2582,6 +2729,38 @@ function renderExpandableBadgeIconSlot({
     );
   }
   return iconNode;
+}
+
+/**
+ * The activity-summary row's hover/expanded background is a translucent
+ * `interactionHighlight`, not the default badge's solid `surface1` fill —
+ * see the `activitySummary` note on `ExpandableBadgeProps`.
+ */
+function resolveExpandableBadgeHighlightStyle(input: {
+  activitySummary: boolean;
+  isExpanded: boolean;
+  isHovered: boolean;
+}): StyleProp<ViewStyle> {
+  if (input.activitySummary) {
+    return input.isHovered || input.isExpanded
+      ? expandableBadgeStylesheet.pressableActivitySummaryHighlighted
+      : null;
+  }
+  return input.isExpanded ? expandableBadgeStylesheet.pressableExpanded : null;
+}
+
+function renderExpandableBadgeTrailingChevron(input: {
+  activitySummary: boolean;
+  isInteractive: boolean;
+}): ReactNode {
+  if (!input.activitySummary || !input.isInteractive) {
+    return null;
+  }
+  return (
+    <View style={expandableBadgeStylesheet.trailingChevron}>
+      <ThemedChevronRightIcon size={ICON_SIZE.sm} uniProps={foregroundMutedColorMapping} />
+    </View>
+  );
 }
 
 function computeShimmerMetrics(input: {
@@ -2701,6 +2880,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   isLastInSequence = false,
   disableOuterSpacing,
   borderlessWhenExpanded = false,
+  activitySummary = false,
   testID,
 }: ExpandableBadgeProps) {
   const resolvedDisableOuterSpacing = useDisableOuterSpacing(disableOuterSpacing);
@@ -2870,10 +3050,10 @@ export const ExpandableBadge = memo(function ExpandableBadge({
     () => [
       expandableBadgeStylesheet.pressable,
       isPressed && isInteractive ? expandableBadgeStylesheet.pressablePressed : null,
-      isExpanded && expandableBadgeStylesheet.pressableExpanded,
+      resolveExpandableBadgeHighlightStyle({ activitySummary, isExpanded, isHovered }),
       isExpanded && !borderlessWhenExpanded && expandableBadgeStylesheet.pressableExpandedAttached,
     ],
-    [borderlessWhenExpanded, isExpanded, isInteractive, isPressed],
+    [activitySummary, borderlessWhenExpanded, isExpanded, isHovered, isInteractive, isPressed],
   );
 
   const detailWrapperStyle = useMemo(
@@ -2890,14 +3070,17 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   );
 
   const isActive = isHovered || isExpanded;
+  // The activity-summary row keeps its sentence muted at every state — the row
+  // background (interactionHighlight) carries hover/expanded feedback instead.
+  const labelIsActive = isActive && !activitySummary;
 
   const labelStyle = useMemo(
     () => [
       expandableBadgeStylesheet.label,
-      isActive && expandableBadgeStylesheet.labelActive,
+      labelIsActive && expandableBadgeStylesheet.labelActive,
       isLoading && expandableBadgeStylesheet.labelLoading,
     ],
-    [isActive, isLoading],
+    [labelIsActive, isLoading],
   );
 
   const secondaryLabelStyle = useMemo(
@@ -2939,9 +3122,12 @@ export const ExpandableBadge = memo(function ExpandableBadge({
   );
 
   const ThemedIcon = useMemo(() => (icon ? withUnistyles(icon) : null), [icon]);
-  const iconNode = renderExpandableBadgeIcon({ isError, isActive, ThemedIcon });
+  const iconNode = renderExpandableBadgeIcon({ isError, isActive: labelIsActive, ThemedIcon });
   const iconSlotNode = renderExpandableBadgeIconSlot({
-    showChevron: isInteractive && (isHovered || isExpanded),
+    activitySummary,
+    isInteractive,
+    isHovered,
+    isExpanded,
     chevronStyle,
     iconNode,
   });
@@ -2995,6 +3181,7 @@ export const ExpandableBadge = memo(function ExpandableBadge({
             onOpenFileHoverIn={handleOpenFileHoverIn}
             onOpenFileHoverOut={handleOpenFileHoverOut}
           />
+          {renderExpandableBadgeTrailingChevron({ activitySummary, isInteractive })}
         </View>
       </Pressable>
       {detailContent ? (
@@ -3022,6 +3209,7 @@ function areExpandableBadgePropsEqual(previous: ExpandableBadgeProps, next: Expa
   if (previous.isLastInSequence !== next.isLastInSequence) return false;
   if (previous.disableOuterSpacing !== next.disableOuterSpacing) return false;
   if (previous.borderlessWhenExpanded !== next.borderlessWhenExpanded) return false;
+  if (previous.activitySummary !== next.activitySummary) return false;
   if (previous.testID !== next.testID) return false;
   if (previous.onToggle !== next.onToggle) return false;
   if (previous.onOpenFile !== next.onOpenFile) return false;

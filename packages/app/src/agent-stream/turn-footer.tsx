@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useMemo, type ReactNode } from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
+import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { MAX_CONTENT_WIDTH } from "@/constants/layout";
 import { SPACING, type Theme } from "@/styles/theme";
@@ -10,19 +11,14 @@ import {
   type StreamStrategy,
 } from "./strategy";
 import { resolveAssistantTurnForkBoundary, type AssistantTurnForkBoundary } from "./turn-boundary";
-import {
-  AssistantTurnFooter,
-  LiveElapsed,
-  STREAM_METADATA_FONT_SIZE,
-  type AssistantForkTarget,
-} from "@/components/message";
+import { AssistantTurnFooter, LiveElapsed, type AssistantForkTarget } from "@/components/message";
 import type { TurnFooterHost } from "./layout";
 import { AssistantForkMenu } from "@/components/assistant-fork-menu";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
-const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
+const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 export const TURN_FOOTER_BOTTOM_SPACING = SPACING[8];
 
 export type TurnContentStrategy = StreamStrategy;
@@ -120,6 +116,7 @@ const WorkingIndicator = memo(function WorkingIndicator({
   inFlightTurnStartedAt?: Date | null;
   onForkInFlightTurn?: InFlightTurnForkHandler;
 }) {
+  const { t } = useTranslation();
   const active = useRetainedPanelActive();
   return (
     <View style={stylesheet.turnFooterContent}>
@@ -129,12 +126,16 @@ const WorkingIndicator = memo(function WorkingIndicator({
       {/* Match the completed-turn footer: actions precede timing metadata. */}
       {onForkInFlightTurn ? <AssistantForkMenu onFork={onForkInFlightTurn} /> : null}
       {inFlightTurnStartedAt ? (
-        <LiveElapsed
-          startedAt={inFlightTurnStartedAt}
-          active={active}
-          style={stylesheet.workingElapsed}
-          testID="turn-working-elapsed"
-        />
+        <View style={stylesheet.workingStatus}>
+          <LiveElapsed
+            startedAt={inFlightTurnStartedAt}
+            active={active}
+            style={stylesheet.workingElapsed}
+            testID="turn-working-elapsed"
+          />
+          <Text style={stylesheet.workingDot}>·</Text>
+          <Text style={stylesheet.workingLabel}>{t("agentStream.turnFooter.working")}</Text>
+        </View>
       ) : null}
     </View>
   );
@@ -236,10 +237,23 @@ const stylesheet = StyleSheet.create((theme) => ({
     justifyContent: "flex-start",
     gap: theme.spacing[3],
   },
+  workingStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+  },
   workingElapsed: {
     color: theme.colors.foregroundMuted,
-    fontSize: STREAM_METADATA_FONT_SIZE,
+    fontSize: theme.fontSize.sm,
     fontVariant: ["tabular-nums"],
+  },
+  workingDot: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  workingLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   workingLoader: {
     marginLeft: -2,
