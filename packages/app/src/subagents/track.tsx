@@ -93,13 +93,13 @@ function collectSubagentRows(nodes: SubagentTreeNode[]): SubagentRow[] {
 /** Leading and action glyphs share one size so rows keep a single icon column. */
 const ROW_ICON_SIZE = 14;
 
-function buildRowPresentation(row: SubagentRow): WorkspaceTabPresentation {
+function buildRowPresentation(row: SubagentRow, serverId: string): WorkspaceTabPresentation {
   const data = buildSubagentRowPresentationData(row);
   return {
     ...data,
     tooltip: data.label,
     modified: false,
-    icon: getProviderIcon(row.provider),
+    icon: getProviderIcon(row.provider, serverId),
   };
 }
 
@@ -175,6 +175,7 @@ export function SubagentsTrack({
         <Fragment key={node.key}>
           <SubagentsTrackRow
             row={node.row}
+            serverId={serverId}
             node={node}
             depth={node.depth}
             hasChildren={node.children.length > 0}
@@ -355,6 +356,7 @@ function QueuedPromptTrackRow({
 }
 
 interface SubagentsTrackRowProps {
+  serverId: string;
   row: SubagentRow;
   node: SubagentTreeNode;
   depth: number;
@@ -369,6 +371,7 @@ interface SubagentsTrackRowProps {
 }
 
 function SubagentsTrackRow({
+  serverId,
   row,
   node,
   depth,
@@ -383,7 +386,7 @@ function SubagentsTrackRow({
 }: SubagentsTrackRowProps): ReactElement {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
-  const presentation = useMemo(() => buildRowPresentation(row), [row]);
+  const presentation = useMemo(() => buildRowPresentation(row, serverId), [row, serverId]);
   const displayLabel =
     presentation.titleState === "loading" ? t("common.states.loading") : presentation.label;
   const handlePress = useCallback(() => {

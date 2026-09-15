@@ -4,6 +4,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { isDeepStrictEqual } = require("node:util");
 const { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, session } = require("electron");
+const { adaptWebContents } = require("../dist/features/browser-automation/ipc.js");
 
 const ROOT = __dirname;
 const OUT_DIR = process.env.PASEO_CAPTURE_HARNESS_OUT_DIR || path.join(ROOT, "out");
@@ -50,7 +51,7 @@ const PERMANENT_STATE_FILTER = new Set(
     .filter(Boolean),
 );
 const PERMANENT_VARIANT_FILTER = new Set(
-  (process.env.PASEO_CAPTURE_HARNESS_VARIANTS || "attach-off")
+  (process.env.PASEO_CAPTURE_HARNESS_VARIANTS || "default")
     .split(",")
     .map((variant) => variant.trim())
     .filter(Boolean),
@@ -58,9 +59,9 @@ const PERMANENT_VARIANT_FILTER = new Set(
 const PERMANENT_CAPTURE_MODES = ["viewport", "full-page"];
 const PERMANENT_THROTTLING_VARIANTS = [
   {
-    id: "capture-only-throttling",
-    code: "capture-only",
-    label: "backgroundThrottling disabled only during each capture",
+    id: "default-throttling",
+    code: "default",
+    label: "Chromium background throttling enabled",
     disableGuestBackgroundThrottlingAtAttach: false,
   },
   {
@@ -444,8 +445,10 @@ async function readGuestMetrics(contents) {
 }
 
 async function capturePageSequence(contents) {
-  contents.invalidate();
-  return await withTimeout(contents.capturePage(undefined, { stayHidden: false }), "capturePage");
+  return adaptWebContents(contents).withFrameProduction(async () => {
+    contents.invalidate();
+    return await withTimeout(contents.capturePage(undefined, { stayHidden: false }), "capturePage");
+  });
 }
 
 async function captureFullPage(contents) {
@@ -487,8 +490,10 @@ async function captureFullPage(contents) {
 }
 
 async function captureFullPageSequence(contents) {
-  contents.invalidate();
-  return await captureFullPage(contents);
+  return adaptWebContents(contents).withFrameProduction(async () => {
+    contents.invalidate();
+    return await captureFullPage(contents);
+  });
 }
 
 function installHarnessWebviewGuards(win, options = {}) {
@@ -2149,7 +2154,7 @@ async function runAutomationGroup() {
   installHarnessWebviewGuards(win, {
     preloadPath: PRODUCTION_BROWSER_GUEST_PRELOAD_PATH,
   });
-  const tracker = trackAttachedGuests(win, { disableGuestBackgroundThrottlingAtAttach: true });
+  const tracker = trackAttachedGuests(win);
   try {
     await withTimeout(
       win.loadFile(path.join(ROOT, "index.html"), {

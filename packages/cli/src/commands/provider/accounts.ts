@@ -44,15 +44,13 @@ export function toProviderAccountRows(input: {
   }));
 }
 
-export interface ProviderAccountsOptions extends CommandOptions {
-  host?: string;
-}
+export type ProviderAccountsOptions = CommandOptions;
 
 export async function runProviderAccountsCommand(
   options: ProviderAccountsOptions,
   _command: Command,
 ): Promise<ListResult<ProviderAccountListItem>> {
-  const client = await connectToDaemon({ host: options.host });
+  const client = await connectToDaemon({ target: options.daemonTarget });
   try {
     const payload = await client.listProviderAccounts();
     return {

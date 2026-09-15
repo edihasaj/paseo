@@ -32,7 +32,7 @@ import {
   AssistantMessage,
   SpeakMessage,
   UserMessage,
-  ActivityLog,
+  Notification,
   ToolCall,
   TodoListCard,
   CompactionMarker,
@@ -51,7 +51,7 @@ import type {
 } from "@getpaseo/protocol/agent-types";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { useSessionStore } from "@/stores/session-store";
-import { useRevealedText } from "@/hooks/use-revealed-text";
+import { StreamingWords, useWordStream } from "@/word-stream";
 import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
 import { useSettings } from "@/hooks/use-settings";
@@ -61,10 +61,7 @@ import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { ToolCallDetailsContent } from "@/components/tool-call-details";
 import { QuestionFormCard } from "@/components/question-form-card";
 import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
-import {
-  prepareToolCallHistory,
-  projectToolCallDetailLevel,
-} from "@/tool-calls/detail-level/projection";
+import { createStreamPresentation } from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
 import { type AgentStreamRenderModel, buildAgentStreamRenderModel } from "./model";
 import { resolveStreamRenderStrategy } from "./strategy-resolver";
@@ -107,7 +104,7 @@ import type { Theme } from "@/styles/theme";
 import { recordRenderProfileReasons } from "@/utils/render-profiler";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useStreamHistoryWindow } from "./use-stream-history-window";
-import { PluginTimelineItemView } from "@/plugins/timeline";
+import { PluginTimelineItemView, useInstalledTimelineTransform } from "@/plugins/timeline";
 
 function renderLiveAuxiliaryNode(input: {
   pendingPermissions: ReactNode;
@@ -220,6 +217,22 @@ function renderListEmptyComponent(input: {
   );
 }
 
+// History rows sit inside FlatList cells that rerender on every data change (RN recreates each
+// CellRenderer with a fresh ref and, in a newest-first list, a shifted index). This boundary is
+// what stops that churn: a row renders again only when its stream item identity, its layout item
+// identity, or the renderer itself changes. Item identity is the revision signal the strategy
+// already uses (`useRevisedHistoryRows` clones items whose content or display state changed).
+const HistoryStreamRow = memo(function HistoryStreamRow({
+  layoutItem,
+  renderStreamItem,
+}: {
+  item: StreamItem;
+  layoutItem: StreamLayoutItem;
+  renderStreamItem: (layoutItem: StreamLayoutItem) => ReactNode;
+}) {
+  return <>{renderStreamItem(layoutItem)}</>;
+});
+
 function renderHistoryStreamItem(input: {
   item: StreamItem;
   layoutItemById: Map<string, StreamLayoutItem>;
@@ -229,7 +242,13 @@ function renderHistoryStreamItem(input: {
   if (!layoutItem) {
     return null;
   }
-  return input.renderStreamItem(layoutItem);
+  return (
+    <HistoryStreamRow
+      item={input.item}
+      layoutItem={layoutItem}
+      renderStreamItem={input.renderStreamItem}
+    />
+  );
 }
 
 function renderLiveHeadStreamItem(input: {
@@ -353,6 +372,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     // Get serverId (fallback to agent's serverId if not provided)
     const resolvedServerId = serverId ?? context.serverId ?? "";
+    const transformTimelineItem = useInstalledTimelineTransform(resolvedServerId);
 
     const client = useSessionStore((state) => state.sessions[resolvedServerId]?.client ?? null);
     const sessionStreamHead = useSessionStore((state) =>
@@ -513,26 +533,23 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const effectiveStreamHead = useRetainedValue(streamHead, isActive);
     const effectiveTurnPresentation = useRetainedValue(turnPresentation, isActive);
     const isTurnActive = effectiveTurnPresentation.isActive;
-    // Keep retained history outside the 48ms live-head flush path.
-    const preparedToolCallHistory = useMemo(
-      () => prepareToolCallHistory(toolCallDetailLevel, effectiveStreamItems),
-      [effectiveStreamItems, toolCallDetailLevel],
-    );
-    const projectedToolCalls = useMemo(
+    const presentStream = useMemo(() => createStreamPresentation(), []);
+    const presentation = useMemo(
       () =>
-        projectToolCallDetailLevel({
-          level: toolCallDetailLevel,
+        presentStream({
           tail: effectiveStreamItems,
           head: effectiveStreamHead ?? EMPTY_STREAM_HEAD,
-          preparedHistory: preparedToolCallHistory,
+          transform: transformTimelineItem,
+          level: toolCallDetailLevel,
           isTurnActive,
         }),
       [
-        effectiveStreamHead,
+        presentStream,
         effectiveStreamItems,
-        isTurnActive,
-        preparedToolCallHistory,
+        effectiveStreamHead,
+        transformTimelineItem,
         toolCallDetailLevel,
+        isTurnActive,
       ],
     );
     const {
@@ -542,7 +559,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       loadOlder,
     } = useStreamHistoryWindow({
       agentId,
-      items: projectedToolCalls.tail,
+      items: presentation.tail,
       loadRemoteOlder,
     });
     const isLoadingOlder = remoteIsLoadingOlder;
@@ -553,8 +570,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       return buildAgentStreamRenderModel({
         isTurnActive,
         activeTurnStartedAt: effectiveTurnPresentation.startedAt,
-        tail: projectedToolCalls.tail,
-        head: projectedToolCalls.head,
+        tail: presentation.tail,
+        head: presentation.head,
         platform: isWeb ? "web" : "native",
         isMobileBreakpoint: isMobile,
         historyStart: historyWindowStart,
@@ -562,8 +579,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     }, [
       isMobile,
       isTurnActive,
-      projectedToolCalls.head,
-      projectedToolCalls.tail,
+      presentation.head,
+      presentation.tail,
       effectiveTurnPresentation.startedAt,
       historyWindowStart,
     ]);
@@ -789,9 +806,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [context.cwd, setInlineDetailsExpanded, handleToolCallOpenFile],
     );
 
+    // Read through a stable event so live group updates do not change the renderer identity
+    // every tick; history hosts whose group changed are revised through `historyRowRevision`.
+    const getToolCallGroup = useStableEvent((hostId: string) =>
+      presentation.groupsByHostId.get(hostId),
+    );
     const renderToolCallItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "tool_call" }>) => {
-        const group = projectedToolCalls.groupsByHostId.get(item.id);
+        const group = getToolCallGroup(item.id);
         if (!group) {
           return renderSingleToolCallItem(item, layoutItem.isLastInToolSequence);
         }
@@ -818,8 +840,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         );
       },
       [
-        projectedToolCalls.groupsByHostId,
         expandedToolCallGroupIds,
+        getToolCallGroup,
         renderSingleToolCallItem,
         setToolCallGroupExpanded,
       ],
@@ -841,15 +863,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           case "tool_call":
             return renderToolCallItem(layoutItem, item);
 
-          case "activity_log":
-            return (
-              <ActivityLog
-                type={item.activityType}
-                message={item.message}
-                timestamp={item.timestamp.getTime()}
-                metadata={item.metadata}
-              />
-            );
+          case "notification":
+            return <Notification level={item.level} message={item.message} />;
 
           case "todo_list":
             return <TodoListCard items={item.items} activity={item.activity} />;
@@ -988,6 +1003,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       return itemById;
     }, [streamLayout.liveHead]);
 
+    const handleReadingPositionChange = useStableEvent((rowId: string | null) => {
+      const row =
+        rowId === null
+          ? undefined
+          : (layoutHistoryItemById.get(rowId) ?? layoutLiveHeadItemById.get(rowId));
+      chatOutline.reportReadingPosition(row?.item.timelineCursor?.seq ?? null);
+    });
+
     const renderHistoryRow = useCallback(
       (item: StreamItem) =>
         renderHistoryStreamItem({
@@ -1051,11 +1074,11 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       expandedInlineToolCallIds.size === 0;
     const historyRowRevision = useMemo(
       () => ({
-        contentById: projectedToolCalls.historyGroupUpdatesByHostId,
+        contentById: presentation.historyGroupUpdatesByHostId,
         displayStateById: expandedToolCallGroupIds,
         globalDisplayState: isMobile,
       }),
-      [expandedToolCallGroupIds, isMobile, projectedToolCalls.historyGroupUpdatesByHostId],
+      [expandedToolCallGroupIds, isMobile, presentation.historyGroupUpdatesByHostId],
     );
 
     return (
@@ -1074,7 +1097,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               routeBottomAnchorRequest,
               isAuthoritativeHistoryReady,
               onNearBottomChange: setIsNearBottom,
-              onReadingPositionChange: chatOutline.reportReadingPosition,
+              onReadingPositionChange: handleReadingPositionChange,
               onNearHistoryStart: loadOlder,
               isLoadingOlderHistory: isLoadingOlder,
               hasOlderHistory: hasOlder,
@@ -1251,7 +1274,7 @@ interface ThoughtSlotProps {
   defaultExpanded: boolean;
 }
 
-// Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
+// Reasoning text is paced the same way assistant text is; see @/word-stream.
 function ThoughtSlot({
   itemId,
   onInlineDetailsExpandedChangeByItemId,
@@ -1260,18 +1283,21 @@ function ThoughtSlot({
   isLastInSequence,
   defaultExpanded,
 }: ThoughtSlotProps) {
-  const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
+  const stream = useWordStream(text, status === "ready" ? "complete" : "streaming");
+  const revealedText = stream.text;
   return (
-    <ToolCallSlot
-      itemId={itemId}
-      onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
-      toolName="thinking"
-      args={revealedText}
-      status={status === "ready" ? "completed" : "executing"}
-      isLastInSequence={isLastInSequence}
-      defaultExpanded={defaultExpanded}
-      forceInline={defaultExpanded}
-    />
+    <StreamingWords stream={stream}>
+      <ToolCallSlot
+        itemId={itemId}
+        onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
+        toolName="thinking"
+        args={revealedText}
+        status={status === "ready" ? "completed" : "executing"}
+        isLastInSequence={isLastInSequence}
+        defaultExpanded={defaultExpanded}
+        forceInline={defaultExpanded}
+      />
+    </StreamingWords>
   );
 }
 
@@ -1536,6 +1562,7 @@ function PermissionRequestCard({
         title={title}
         description={description}
         text={planMarkdown}
+        outcome="pending"
         footer={footer}
         testID="permission-plan-card"
         disableOuterSpacing

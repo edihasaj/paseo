@@ -11,7 +11,7 @@ import { Alert as InlineAlert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getProviderIcon } from "@/components/provider-icons";
-import { SettingsSection } from "@/screens/settings/settings-section";
+import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { settingsStyles } from "@/styles/settings";
 import { ICON_SIZE } from "@/styles/theme";
 import { confirmDialog } from "@/utils/confirm-dialog";

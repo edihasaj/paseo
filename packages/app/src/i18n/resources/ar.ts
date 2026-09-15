@@ -10,10 +10,13 @@ export const ar: TranslationResources = {
       cancel: "يلغي",
       close: "يغلق",
       copy: "ينسخ",
+      copyLine: "نسخ السطر",
       dismiss: "رفض",
+      reload: "إعادة التحميل",
       retry: "أعد المحاولة",
       search: "يبحث",
       select: "يختار",
+      selectAll: "تحديد الكل",
     },
     placeholders: {
       search: "يبحث...",
@@ -33,6 +36,7 @@ export const ar: TranslationResources = {
     errors: {
       error: "خطأ",
       unableToSave: "غير قادر على الحفظ",
+      unableToCopy: "تعذر النسخ",
       nameRequired: "الاسم مطلوب",
       daemonUnavailable: "Daemon غير متوفر",
       daemonClientUnavailable: "عميل Daemon غير متوفر",
@@ -152,7 +156,7 @@ export const ar: TranslationResources = {
       initialPromptRequired: "مطلوب موجه الأولي",
       alreadyLoading: "جارٍ التحميل بالفعل",
       uploadFailed: "Failed to upload file",
-      noClipboardImage: "لا توجد صورة في الحافظة",
+      noClipboardImage: "لا توجد صورة في الحافظة الحالية. جرّب اللصق من لوحة المفاتيح.",
       pasteImageFailed: "تعذر لصق الصورة",
       fileTooLarge: "{{fileName}} is too large (max {{size}})",
     },
@@ -205,7 +209,12 @@ export const ar: TranslationResources = {
     empty: "ابدأ الدردشة مع هذا الوكيل...",
     scrollToBottom: "قم بالتمرير إلى الأسفل",
     historyLoadFailed: "تعذر تحميل سجل الوكيل",
+    messageCapped: "تم اقتطاع هذه الرسالة ({{bytes}} بايت).",
     permission: {
+      rejectedPlan: "خطة مرفوضة",
+      approvedPlan: "خطة معتمدة",
+      canceledPlan: "خطة ملغاة",
+
       plan: "يخطط",
       required: "الإذن مطلوب",
       deny: "ينكر",
@@ -219,7 +228,8 @@ export const ar: TranslationResources = {
     states: {
       notFound: "لم يتم العثور على Agent",
       failedToLoad: "فشل تحميل الوكيل",
-      reconnecting: "جارٍ إعادة الاتصال",
+      reconnecting: "جارٍ إعادة الاتصال بالمضيف",
+      updating: "جارٍ تحديث الرسائل",
       timelineSyncFailed: "تعذر تحديث سجل الوكيل.",
       timelineSyncRetrying: "جارٍ إعادة المحاولة…",
       archivingTitle: "وكيل الارشيف...",
@@ -287,6 +297,7 @@ export const ar: TranslationResources = {
       zoomIn: "تكبير",
       zoomOut: "تصغير",
       resetZoom: "إعادة تعيين العرض",
+      fullscreen: "ملء الشاشة",
       viewSource: "عرض المصدر",
       viewDiagram: "عرض المخطط",
     },
@@ -347,7 +358,6 @@ export const ar: TranslationResources = {
         added: "أُضيفت",
         started: "بدأت",
         completed: "اكتملت",
-        reopened: "أُعيد فتحها",
       },
     },
     compaction: {
@@ -359,7 +369,13 @@ export const ar: TranslationResources = {
     },
   },
   importSession: {
+    chooseHostTitle: en.importSession.chooseHostTitle,
     title: "جلسة الاستيراد",
+    searchPlaceholder: "البحث في الجلسات...",
+    scope: {
+      host: "الجلسات على {{host}}",
+      workspace: "مساحة العمل هذه",
+    },
     filters: {
       all: "الجميع",
     },
@@ -368,12 +384,13 @@ export const ar: TranslationResources = {
       updateHost: "قم بتحديث المضيف لاستيراد الجلسات.",
       noProviders: "لم يتم تمكين أي موفري خدمات قابلين للاستيراد.",
       loading: "جارٍ تحميل الجلسات الأخيرة...",
-      failedAll: "تعذر تحميل الجلسات الأخيرة.",
-      failedProviders: "تعذر تحميل جلسات العمل لـ{{providers}}.",
+      failedProvider: "تعذر تحميل جلسات {{provider}}",
       failedImport: "تعذر استيراد الجلسة المحددة.",
     },
     actions: {
       refresh: "تحديث الجلسات",
+      showAll: "عرض الكل",
+      loadMore: "تحميل المزيد",
     },
     preview: {
       untitledSession: "جلسة بلا عنوان",
@@ -381,6 +398,7 @@ export const ar: TranslationResources = {
     },
     empty: {
       noRecent: "لا توجد جلسات حديثة لاستيرادها.",
+      noMatches: "لا توجد جلسات تطابق بحثك.",
       alreadyImported: "تم بالفعل استيراد كافة الجلسات الأخيرة.",
       noProviderSessions: "لم يتم العثور على جلسات{{provider}}.",
     },
@@ -493,14 +511,23 @@ export const ar: TranslationResources = {
         completed: "اكتمل الإعداد",
         failed: "فشل الإعداد",
         workspace: "إعداد Workspace",
+        blocked: "تم حظر الإعداد",
       },
       status: {
         running: "جري",
         completed: "مكتمل",
         failed: "فشل",
         waiting: "في انتظار إخراج الإعداد",
+        blocked: "محظور",
       },
       waiting: "جارٍ إعداد مساحة العمل...",
+      blocked: {
+        title: "لم يتم تشغيل الإعداد",
+        description:
+          "يأتي طلب السحب هذا من {{repository}}، وهو مستودع مختلف. قد يشغّل الإعداد والبرامج النصية تعليمات برمجية لم تراجعها.",
+        run: "تشغيل الإعداد",
+        runFailed: "فشل تشغيل إعداد مساحة العمل",
+      },
       empty: {
         noCommands: "لم يتم تشغيل أي أوامر إعداد لمساحة العمل هذه.",
       },
@@ -871,6 +898,9 @@ export const ar: TranslationResources = {
         openChangesTab: "فتح علامة تبويب التغييرات",
         openDiffTab: "فتح علامة تبويب الفرق",
         closeChangesTab: "إغلاق علامة تبويب التغييرات",
+        jumpToFile: {
+          title: "الانتقال إلى ملف",
+        },
         binaryFile: "ملف ثنائي",
         tooLarge: "الفرق كبير جدًا بحيث لا يمكن عرضه",
         previewTooLargeTitle: "هذا الفرق كبير جدًا بحيث لا يمكن معاينته",
@@ -893,11 +923,8 @@ export const ar: TranslationResources = {
         refresh: "ينعش",
         refreshState: "تحديث حالة git و{{brand}}",
         failedRefresh: "فشل تحديث حالة git.",
-        emptyHiddenWhitespace: "لا توجد تغييرات مرئية بعد إخفاء المسافة البيضاء",
-        emptyUncommitted: "لا توجد تغييرات غير ملتزم بها",
         seeUncommittedChanges: "عرض التغييرات غير الملتزم بها",
         seeCommittedChanges: "عرض التغييرات الملتزم بها",
-        emptyAgainstBase: "لا توجد تغييرات مقابل{{baseRef}}",
         checkingRepository: "فحص المستودع...",
         notRepository: "ليس مستودع جيت",
         diffMode: "وضع الفرق",
@@ -1037,6 +1064,16 @@ export const ar: TranslationResources = {
       updateHost: "حدّث هذا المضيف لإدارة التسميات.",
     },
   },
+  changelog: {
+    title: "ما الجديد",
+    installed: "مثبّت",
+    showMore: "عرض المزيد",
+    openWebsite: "سجل التغييرات الكامل",
+    error: {
+      title: "تعذّر تحميل سجل التغييرات",
+      description: "تحقق من اتصالك وحاول مرة أخرى.",
+    },
+  },
   sidebar: {
     display: {
       trigger: "تفضيلات العرض",
@@ -1097,7 +1134,6 @@ export const ar: TranslationResources = {
       newChat: "محادثة جديدة",
       newChatFailed: "تعذر بدء محادثة.",
       hosts: "المضيفون",
-      home: "بيت",
       settings: "إعدادات",
       closeSidebar: "إغلاق الشريط الجانبي",
     },
@@ -1115,6 +1151,7 @@ export const ar: TranslationResources = {
     sections: {
       sessions: "السجل",
       chats: "المحادثات",
+      search: "بحث",
       schedules: "الجداول",
     },
     worktreeSetup: {
@@ -1261,6 +1298,7 @@ export const ar: TranslationResources = {
       detail: "إيقاف البرنامج الخفي المحلي.",
     },
     daemon: {
+      lifecycle: en.desktop.daemon.lifecycle,
       title: "Daemon",
       status: {
         title: "حالة",
@@ -2080,6 +2118,7 @@ export const ar: TranslationResources = {
     about: {
       title: "عن",
       appVersion: "نسخة التطبيق",
+      whatsNewHint: "ملاحظات الإصدار لكل نسخة",
       thisDevice: "هذا الجهاز",
       connectedHosts: "المضيفين المتصلين",
       offline: "غير متصل",
@@ -2126,6 +2165,12 @@ export const ar: TranslationResources = {
       chatOutline: {
         title: "مخطط المحادثة",
         description: "عرض مخطط للتنقل بين المطالبات",
+      },
+      sidebar: {
+        title: "الشريط الجانبي",
+        description: "اختر العناصر التي تظهر أعلى الشريط الجانبي وترتيبها",
+        moveUp: "نقل لأعلى",
+        moveDown: "نقل لأسفل",
       },
       fonts: {
         title: "الخطوط",

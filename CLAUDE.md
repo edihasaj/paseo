@@ -46,6 +46,7 @@ At the start of non-trivial work, list `docs/` and skim anything relevant to the
 | [docs/rpc-namespacing.md](docs/rpc-namespacing.md)                   | WebSocket RPC naming convention — dotted namespaces and `.request`/`.response` pairs                                           |
 | [docs/protocol-compatibility.md](docs/protocol-compatibility.md)     | Why app/daemon versions drift, protocol vs feature contract, capability gating, COMPAT tagging                                 |
 | [docs/protocol-validation.md](docs/protocol-validation.md)           | zod-aot generated inbound WebSocket validation, patched compiler regressions, schema-purity rules                              |
+| [docs/permissions.md](docs/permissions.md)                           | Semantic daemon permissions, principals, credentials, pairing invitations, and Hub authority                                   |
 | [docs/terminal-performance.md](docs/terminal-performance.md)         | Terminal latency pipeline, coalescing/backpressure invariants, benchmark + perf spec usage                                     |
 | [docs/agent-stream-performance.md](docs/agent-stream-performance.md) | Assistant text pipeline — coalescing window, paced reveal, why arrival lumps are smoothed at render                            |
 | [docs/file-observation.md](docs/file-observation.md)                 | Recursive watcher ownership, Linux constraints, teardown invariants, and Parcel comparison                                     |
@@ -105,6 +106,13 @@ Repo dev commands use checkout-local state by default. In this checkout, `PASEO_
 
 See [docs/development.md](docs/development.md) for full setup, build sync requirements, and debugging.
 
+## Release branches
+
+When the user says "this goes to next", create or
+retarget the PR to `next` and preserve that destination through delivery. Follow
+[release branch discipline](docs/release.md#release-branch-discipline) for creating
+and updating `next`, integrating it after a release, and releasing a hotfix from a tag.
+
 ## Critical rules
 
 - **NEVER restart the main Paseo daemon on port 6767 without permission** — it manages all running agents. If you're an agent, restarting it kills your own process.
@@ -117,6 +125,7 @@ See [docs/development.md](docs/development.md) for full setup, build sync requir
   - If you must run a broad suite, pipe output to a file and read it afterward: `npx vitest run <file> --bail=1 > /tmp/test-output.txt 2>&1` then read the file.
   - Never re-run a test suite that another agent already ran and reported green — trust the result.
   - For full suite verification, push to CI and check GitHub Actions instead.
+- Add tests to existing suites and reuse their npm scripts and CI jobs instead of creating feature-specific ones.
 - **Always run typecheck and lint after every change.**
 - **Build workspace packages before diagnosing cross-package type errors.** This repo consumes generated declarations across workspaces. If typecheck fails in a package that depends on another workspace, rebuild the owning stack first so `dist` declarations are current:
   - `npm run build:client` — rebuild protocol and client declarations.
