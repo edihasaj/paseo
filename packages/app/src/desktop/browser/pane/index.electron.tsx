@@ -796,6 +796,13 @@ export function BrowserPane({
 
     const handleStartLoading = () => {
       selectorControllerRef.current?.stopForWebview(webview);
+      // A stray "did-start-loading" with no matching "did-stop-loading" would
+      // otherwise pin the annotate/screenshot controls disabled forever.
+      // webview.isLoading() is the live, synchronous source of truth; only
+      // trust the event when it agrees.
+      if (webview.isLoading?.() === false) {
+        return;
+      }
       updateBrowser(browserId, { isLoading: true, lastError: null });
       syncNavigationState({ syncUrl: false });
     };

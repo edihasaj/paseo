@@ -15,6 +15,7 @@ import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { expectMobileAgentSidebarHidden } from "../support/helpers/sidebar";
 import {
+  expectWorkspaceHeaderTitle,
   switchWorkspaceViaSidebar,
   waitForWorkspaceInSidebar,
 } from "../support/helpers/workspace-ui";
@@ -252,9 +253,9 @@ test.describe("plugin workspace panels and Command Center", () => {
           (await page.getByText(/Workspace renders \d+/).textContent())?.split(" ").at(-1),
         );
         await primaryClient.setWorkspaceTitle(primary.workspaceId, "Unrelated title update");
-        await expect(page.getByTestId("workspace-header-title")).toHaveText(
-          "Unrelated title update",
-        );
+        // Wide viewport: the desktop breadcrumb may prefix this with "project / " when the
+        // project name differs from the title (WorkspaceHeaderBreadcrumb).
+        await expectWorkspaceHeaderTitle(page, "Unrelated title update");
         expect(
           Number((await page.getByText(/Workspace renders \d+/).textContent())?.split(" ").at(-1)),
         ).toBe(renderCount);

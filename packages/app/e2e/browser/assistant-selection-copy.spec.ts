@@ -337,7 +337,9 @@ test("copying an assistant selection preserves Markdown structure and links", as
       const formattedProse = assistantMessage
         .locator(`[data-paseo-markdown-tag="${tag}"]`)
         .filter({ hasText: text });
-      await expect(formattedProse).toHaveCSS("font-family", "serif");
+      // The "Prose font" setting resolves "serif" to DEFAULT_SERIF_FONT_STACK
+      // (styles/theme.ts), a fallback stack rather than the bare keyword.
+      await expect(formattedProse).toHaveCSS("font-family", /Iowan Old Style/);
       await expect(formattedProse).not.toHaveAttribute("data-pmono");
     }
     const inlineCode = assistantMessage

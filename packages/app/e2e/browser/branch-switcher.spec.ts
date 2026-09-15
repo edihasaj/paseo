@@ -10,6 +10,7 @@ import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 import { readWorktreeBranchInfo } from "../support/helpers/workspace";
 import {
+  expectWorkspaceHeaderTitle,
   switchWorkspaceViaSidebar,
   waitForSidebarHydration,
 } from "../support/helpers/workspace-ui";
@@ -69,13 +70,10 @@ test.describe("Branch switcher", () => {
         title: customTitle,
       });
 
-      // The header shows the custom title verbatim (a plain static title), never a
-      // branch name, and the branch switcher does not live in the header.
-      const headerTitle = page
-        .getByTestId("workspace-header-title")
-        .filter({ visible: true })
-        .first();
-      await expect(headerTitle).toHaveText(customTitle, { timeout: 30_000 });
+      // The header shows the custom title (bare, or as the "project / title" desktop
+      // breadcrumb -- see expectWorkspaceHeaderTitle), never a branch name, and the branch
+      // switcher does not live in the header.
+      await expectWorkspaceHeaderTitle(page, customTitle, { timeout: 30_000 });
       await expectNoBranchSwitcherInWorkspaceHeader(page);
 
       // The diff panel's switcher tracks the real branch ("main"), not the title,
@@ -86,7 +84,7 @@ test.describe("Branch switcher", () => {
       await expectWorkspaceBranch(page, "dev");
 
       // The custom title is unaffected by the branch switch.
-      await expect(headerTitle).toHaveText(customTitle, { timeout: 30_000 });
+      await expectWorkspaceHeaderTitle(page, customTitle, { timeout: 30_000 });
 
       await expect
         .poll(

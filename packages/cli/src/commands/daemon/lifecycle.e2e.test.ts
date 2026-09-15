@@ -95,6 +95,22 @@ async function fixture() {
       await ok(["daemon", "config", "set", field!, value!, "--home", home]);
     }
   }
+  // `port()` releases its probe socket before the daemon binds it, so another process on a
+  // loaded CI runner can grab the same port first (classic TOCTOU). Mirrors the retry-with-a-
+  // fresh-port idiom used by the server package's own daemon test harness: on a bind failure,
+  // reconfigure `home` with a newly probed port and start again.
+  async function startResilient(home: string, extraArgs: string[] = []) {
+    const maxAttempts = 4;
+    for (let attempt = 0; ; attempt += 1) {
+      await configure(home, `127.0.0.1:${await port()}`);
+      const result = await run(["--json", "start", "--home", home, ...extraArgs]);
+      if (result.code === 0) return result.json();
+      const bindConflict = /EADDRINUSE/.test(result.stdout + result.stderr);
+      if (!bindConflict || attempt === maxAttempts - 1) {
+        expect(result.code, `start --home ${home}\n${result.stdout}\n${result.stderr}`).toBe(0);
+      }
+    }
+  }
   async function close() {
     for (const [home, captured] of owned) {
       try {
@@ -108,7 +124,7 @@ async function fixture() {
     }
     await rm(root, { recursive: true, force: true });
   }
-  return { root, homes, env, run, ok, liveStatus, configure, close };
+  return { root, homes, env, run, ok, liveStatus, configure, startResilient, close };
 }
 
 test("managed two-home restart retains its supervisor and never routes ordinary commands or stop to the other home", async () => {
@@ -430,11 +446,9 @@ test("raw log following subscribes to a stored agent that exists only in B", asy
   const [a, b] = f.homes as [string, string];
   let follower: ReturnType<typeof spawn> | undefined;
   try {
-    await f.configure(a, `127.0.0.1:${await port()}`);
-    await f.configure(b, `127.0.0.1:${await port()}`);
     const agentId = "4de8b157-7614-4c38-b189-e50e57fb9498";
     const now = new Date().toISOString();
-    await mkdir(path.join(b, "agents"));
+    await mkdir(path.join(b, "agents"), { recursive: true });
     await writeFile(
       path.join(b, "agents", `${agentId}.json`),
       JSON.stringify({
@@ -448,8 +462,8 @@ test("raw log following subscribes to a stored agent that exists only in B", asy
         persistence: null,
       }),
     );
-    const launchA = await f.ok(["start", "--home", a]);
-    await f.ok(["start", "--home", b]);
+    const launchA = await f.startResilient(a);
+    await f.startResilient(b);
     const absent = await f.run(["logs", agentId, "--home", a]);
     expect(absent.stderr).toContain("Agent not found");
     follower = spawn(
