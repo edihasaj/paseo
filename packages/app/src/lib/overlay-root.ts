@@ -94,6 +94,16 @@ const webOverlayEntries: WebOverlayEntry[] = [];
 let webOverlayOrder = 0;
 let webOverlayListenersAttached = false;
 let webOverlayFocusCheckQueued = false;
+// The last element an overlay's own teardown explicitly returned focus to (see
+// addWebOverlay's remove callback). A closing overlay's own exit chrome (a
+// fading "Close" button, a bottom-sheet handle) can still take a real focusin
+// event on its way out, after the deliberate restore already ran. The escaped-
+// focus corrector below would otherwise treat that as focus needing a home and
+// jump to the new top overlay's first focusable control — stealing focus from
+// wherever the closing overlay meant to send it back to. Preferring this
+// remembered target (when it is still valid for whatever is on top now) keeps
+// that deliberate handoff instead of guessing.
+let lastExplicitRestoreFocus: HTMLElement | null = null;
 
 interface RemoveWebOverlayOptions {
   restoreFocus?: boolean;
@@ -130,6 +140,16 @@ function getFocusableElements(scope: HTMLElement): HTMLElement[] {
 }
 
 function focusFirstElement(scope: HTMLElement): void {
+  // Prefer a focus target an overlay's own teardown deliberately restored over
+  // guessing the scope's first control — see lastExplicitRestoreFocus above.
+  if (
+    lastExplicitRestoreFocus &&
+    document.contains(lastExplicitRestoreFocus) &&
+    scope.contains(lastExplicitRestoreFocus)
+  ) {
+    lastExplicitRestoreFocus.focus();
+    return;
+  }
   const firstMenuItem = scope.querySelector<HTMLElement>(
     '[data-menu-item="true"]:not([data-menu-disabled="true"])',
   );
@@ -230,6 +250,12 @@ function addWebOverlay(entry: WebOverlayEntry): (options?: RemoveWebOverlayOptio
       document.contains(entry.restoreFocus)
     ) {
       entry.restoreFocus.focus();
+      // The closing overlay's own exit chrome (fade-out close button, sheet
+      // handle) can still fire a real focusin after this, before it finishes
+      // unmounting. Remember this as the intended destination so the escaped-
+      // focus corrector re-asserts it instead of jumping to the new top
+      // overlay's first control.
+      lastExplicitRestoreFocus = entry.restoreFocus;
     }
   };
 }
