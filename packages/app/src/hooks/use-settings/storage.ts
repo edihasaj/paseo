@@ -151,7 +151,12 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   sidebarChecksDisplay: DEFAULT_SIDEBAR_CHECKS_DISPLAY,
   sidebarNavItems: [],
   autoExpandReasoning: false,
-  toolCallDetailLevel: "detailed",
+  // New installs default to the collapsed activity row ("Ran N commands, read N
+  // files…"). Existing installs keep whatever they already had — StoredAppSettingsSchema's
+  // transform (below) only falls back to "detailed" when a stored blob has neither the
+  // new field nor the legacy `compactToolCalls` flag, which never happens for a fresh
+  // install (there is no stored blob at all, so this default applies directly).
+  toolCallDetailLevel: "overview",
   chatOutlineEnabled: true,
   vimKeybindings: false,
   openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,

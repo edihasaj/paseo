@@ -160,6 +160,10 @@ describe("loadAppSettingsFromStorage", () => {
 
     expect(result).toEqual(DEFAULT_CLIENT_SETTINGS);
     expect(DEFAULT_CLIENT_SETTINGS.language).toBe("system");
+    // New installs default to the collapsed activity row, matching the Codex-like
+    // default; an existing install upgrading from a stored blob without this field
+    // keeps resolving to "detailed" (see the compactToolCalls migration tests below).
+    expect(DEFAULT_CLIENT_SETTINGS.toolCallDetailLevel).toBe("overview");
     expect(JSON.parse(deps.storage.entries.get(APP_SETTINGS_KEY) ?? "null")).toEqual(
       DEFAULT_CLIENT_SETTINGS,
     );
@@ -357,6 +361,11 @@ describe("loadAppSettingsFromStorage", () => {
       ...DEFAULT_CLIENT_SETTINGS,
       theme: "dark",
       contentFontSize: DEFAULT_UI_BASE_FONT_SIZE,
+      // A legacy-key blob is an existing install, not a fresh one — it goes through
+      // StoredAppSettingsSchema's transform, which falls back to "detailed" (not the
+      // fresh-install "overview" default) when neither the new field nor the legacy
+      // `compactToolCalls` flag is present.
+      toolCallDetailLevel: "detailed",
     });
     expect(JSON.parse(deps.storage.entries.get(APP_SETTINGS_KEY) ?? "null")).toEqual({
       manageBuiltInDaemon: false,
@@ -495,6 +504,9 @@ describe("loadSettingsFromStorage", () => {
       ...DEFAULT_APP_SETTINGS,
       theme: "light",
       contentFontSize: DEFAULT_UI_BASE_FONT_SIZE,
+      // An existing stored blob without this field falls back to "detailed" via
+      // StoredAppSettingsSchema's transform, not the fresh-install "overview" default.
+      toolCallDetailLevel: "detailed",
     });
   });
 
@@ -541,6 +553,9 @@ describe("loadSettingsFromStorage", () => {
       contentFontSize: DEFAULT_UI_BASE_FONT_SIZE,
       manageBuiltInDaemon: false,
       releaseChannel: "beta",
+      // An existing stored blob without this field falls back to "detailed" via
+      // StoredAppSettingsSchema's transform, not the fresh-install "overview" default.
+      toolCallDetailLevel: "detailed",
     });
   });
 
@@ -560,6 +575,9 @@ describe("loadSettingsFromStorage", () => {
       ...DEFAULT_APP_SETTINGS,
       theme: "light",
       contentFontSize: DEFAULT_UI_BASE_FONT_SIZE,
+      // An existing stored blob without this field falls back to "detailed" via
+      // StoredAppSettingsSchema's transform, not the fresh-install "overview" default.
+      toolCallDetailLevel: "detailed",
     });
   });
 });
