@@ -9,9 +9,16 @@ const roots: string[] = [];
 const staticDirs: string[] = [];
 
 afterEach(async () => {
+  // maxRetries/retryDelay absorb the brief EBUSY window on Windows where the daemon's
+  // file watchers can still hold a handle open just after close(), matching the retry
+  // convention used by createTestPaseoDaemon's own cleanup.
   await Promise.all([
-    ...roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-    ...staticDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    ...roots
+      .splice(0)
+      .map((root) => rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })),
+    ...staticDirs
+      .splice(0)
+      .map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 })),
   ]);
 });
 
