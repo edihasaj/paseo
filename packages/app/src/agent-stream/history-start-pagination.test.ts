@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  abandonHistoryStartPagination,
   abandonHistoryStartPaginationRequest,
   createHistoryStartPaginationState,
   evaluateHistoryStartPagination,
@@ -193,5 +194,25 @@ describe("history start pagination", () => {
       evaluateHistoryStartPagination(state, { ...visibleHistoryStart, progressKey: null })
         .shouldLoad,
     ]).toEqual([false, false, false, false]);
+  });
+
+  it("abandons a settling or loading operation to ready rather than resuming it", () => {
+    const settling = evaluateHistoryStartPagination(
+      evaluateHistoryStartPagination(createArmedHistoryStartPaginationState(), visibleHistoryStart)
+        .state,
+      { ...visibleHistoryStart, progressKey: "epoch-1:20:local-60" },
+    ).state;
+    expect(settling).toEqual({ status: "settling", loadedProgressKey: "epoch-1:20:local-60" });
+
+    expect(abandonHistoryStartPagination(settling)).toEqual({ status: "ready" });
+    expect(abandonHistoryStartPagination(createArmedHistoryStartPaginationState())).toEqual({
+      status: "ready",
+    });
+  });
+
+  it("leaves a dormant state alone: pagination has not armed for this chat yet", () => {
+    expect(abandonHistoryStartPagination(createHistoryStartPaginationState())).toEqual({
+      status: "dormant",
+    });
   });
 });

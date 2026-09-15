@@ -32,4 +32,17 @@ describe("panel instance attributes", () => {
     expect(notifications).toBe(2);
     unsubscribe();
   });
+
+  test("retains an unmodified panel that asks to stay mounted", () => {
+    const identity = { serverId: "server", workspaceId: "retain", tabId: "chat" };
+
+    setPanelInstanceAttributes(identity, { modified: false, retainMount: true });
+    expect(getPanelInstanceAttributes(identity)).toEqual({
+      modified: false,
+      retainMount: true,
+    });
+
+    setPanelInstanceAttributes(identity, { modified: false, retainMount: false });
+    expect(getPanelInstanceAttributes(identity)).toEqual({ modified: false });
+  });
 });

@@ -34,6 +34,22 @@ export function rearmHistoryStartPagination(
   return state.status === "dormant" || state.status === "latched" ? { status: "ready" } : state;
 }
 
+/**
+ * Abandons any in-flight or settling older-history load, e.g. because the panel that
+ * owns it went inactive (retained but hidden behind a react-freeze boundary). A
+ * "settling" operation resumed on reactivation reevaluates against whatever geometry
+ * happens to exist at that moment rather than the continuous layout it was tracking,
+ * so letting it continue can chain-load and reapply a stale anchor correction instead
+ * of preserving the reader's position. "ready" lets the next evaluate decide fresh,
+ * without disabling pagination the way "dormant" would for a chat the reader already
+ * engaged with.
+ */
+export function abandonHistoryStartPagination(
+  state: HistoryStartPaginationState,
+): HistoryStartPaginationState {
+  return state.status === "dormant" ? state : { status: "ready" };
+}
+
 export function abandonHistoryStartPaginationRequest(
   state: HistoryStartPaginationState,
   requestedProgressKey: string,

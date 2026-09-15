@@ -285,6 +285,14 @@ export interface AgentStreamViewProps {
   bottomOverlayControlClearance?: number;
   toast?: ToastApi | null;
   onOpenWorkspaceFile?: (request: WorkspaceFileOpenRequest) => void;
+  /**
+   * Fires whenever the transcript starts or stops following the live tail (scrolled
+   * away from the bottom, or a newer server timeline is pending). Callers use this to
+   * keep a reading-in-progress panel mounted instead of letting a tab LRU cap evict it
+   * mid-read — an eviction remounts the transcript at "initial-entry" and jumps to the
+   * bottom, losing the reader's place (see PR #2838's retained-panel approach).
+   */
+  onFollowingLatestChange?: (isFollowingLatest: boolean) => void;
   readOnly?: boolean;
   historyPagination?: {
     hasOlder: boolean;
@@ -322,6 +330,23 @@ function resolveBottomOverlayControlOffset(clearance: number | undefined): numbe
   return Math.max(16, clearance ?? 0);
 }
 
+/**
+ * Notifies a caller whenever the transcript starts or stops following the live tail.
+ * Extracted from the component body so its branch doesn't count against
+ * `AgentStreamView`'s own complexity budget.
+ */
+function useNotifyFollowingLatestChange(input: {
+  isNearBottom: boolean;
+  isTimelineDetached: boolean;
+  onFollowingLatestChange?: (isFollowingLatest: boolean) => void;
+}): void {
+  const isFollowingLatest = input.isNearBottom && !input.isTimelineDetached;
+  const { onFollowingLatestChange } = input;
+  useEffect(() => {
+    onFollowingLatestChange?.(isFollowingLatest);
+  }, [isFollowingLatest, onFollowingLatestChange]);
+}
+
 const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamViewProps>(
   function AgentStreamView(
     {
@@ -339,6 +364,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       bottomOverlayControlClearance,
       toast,
       onOpenWorkspaceFile,
+      onFollowingLatestChange,
       readOnly = false,
       historyPagination,
     },
@@ -394,6 +420,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const isTimelineDetached = useSessionStore(
       (state) => state.sessions[resolvedServerId]?.agentTimelineHasNewer.get(agentId) === true,
     );
+    useNotifyFollowingLatestChange({ isNearBottom, isTimelineDetached, onFollowingLatestChange });
 
     const workspaceRoot = context.cwd?.trim() || "";
     const { requestDirectoryListing } = useFileExplorerActions({
@@ -1246,6 +1273,9 @@ function agentStreamViewPropsEqual(
   }
   if (left.toast !== right.toast) reasons.push("toast");
   if (left.onOpenWorkspaceFile !== right.onOpenWorkspaceFile) reasons.push("onOpenWorkspaceFile");
+  if (left.onFollowingLatestChange !== right.onFollowingLatestChange) {
+    reasons.push("onFollowingLatestChange");
+  }
   if (left.readOnly !== right.readOnly) reasons.push("readOnly");
   if (!historyPaginationPropsEqual(left.historyPagination, right.historyPagination)) {
     reasons.push("historyPagination");
