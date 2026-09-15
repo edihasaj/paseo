@@ -53,7 +53,8 @@ export function SidebarHeaderRow({
     ({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.button,
       variant === "compact" && styles.buttonCompact,
-      (Boolean(hovered) || isActive) && styles.buttonHovered,
+      Boolean(hovered) && !isActive && styles.buttonHovered,
+      isActive && styles.buttonSelected,
     ],
     [isActive, variant],
   );
@@ -146,7 +147,10 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
   },
   buttonHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    backgroundColor: theme.colors.interactionHighlight,
+  },
+  buttonSelected: {
+    backgroundColor: theme.colors.surface2,
   },
   label: {
     fontSize: theme.fontSize.base,
