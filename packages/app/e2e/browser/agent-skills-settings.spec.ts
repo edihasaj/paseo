@@ -122,11 +122,20 @@ test.describe("Host agent skills", () => {
   });
 
   test("keeps the sheet open with an error when convergence fails", async ({ page, skills }) => {
+    // The failed save below must leave the prior selection untouched, so seed
+    // a real "all" selection first — the host default (custom, no skills;
+    // see selection-store.ts) has nothing to leave unchanged.
+    await skills.install({ mode: "all" });
     await openAgentSkillsSettings(page, skills);
     await openSkillSelection(page);
     await skills.blockAgentsDirectory();
     await chooseCustomSkills(page, [skills.available[0]!]);
+
+    // Dropping from "all" to one skill removes the rest, which asks for
+    // confirmation before the daemon ever attempts (and fails) the write.
+    const removalWarning = answerNextRemovalWarning(page, "accept");
     await saveSkillSelection(page);
+    await removalWarning;
 
     await expect(
       page.getByText("Could not save your skill selection.", { exact: true }),
