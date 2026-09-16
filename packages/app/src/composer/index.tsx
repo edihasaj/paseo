@@ -737,6 +737,7 @@ function QueuedMessageRow({
       style={[styles.queueItem, !isLast && styles.queueItemDivider]}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
+      testID="composer-queue-row"
     >
       <View style={styles.queueSummary}>
         <ThemedListEnd size={ICON_SIZE.xs} uniProps={iconForegroundMutedMapping} />

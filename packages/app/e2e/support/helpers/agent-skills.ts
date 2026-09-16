@@ -73,6 +73,10 @@ export async function startAgentSkillsSandbox(): Promise<AgentSkillsSandbox> {
     home,
     targets,
     blockAgentsDirectory: async () => {
+      // `targets.agents` may already be a real directory from an earlier
+      // `install()` call in this test, so clear it before replacing it with
+      // the file that blocks convergence.
+      await rm(targets.agents, { recursive: true, force: true });
       await mkdir(path.dirname(targets.agents), { recursive: true });
       await writeFile(targets.agents, "not a directory", "utf8");
     },
@@ -146,10 +150,30 @@ export async function expectSkillSelectionOpen(page: Page): Promise<void> {
   await expect(page.getByRole("switch", { name: "All skills", exact: true })).toBeVisible();
 }
 
-export async function chooseCustomSkills(page: Page, selected: string[]): Promise<void> {
+/**
+ * Reaches "every skill checked" (the baseline this function prunes down from)
+ * regardless of the sheet's starting selection. A host that has never saved a
+ * selection opens on "custom, no skills" (see selection-store.ts — Stroll
+ * installs nothing until asked), not "all", so this can't assume the switch
+ * starts checked. Individual checkboxes are disabled while "All skills" is
+ * on, so turning it off is still the only way to reach a per-skill baseline
+ * from that state; from "custom" the checkboxes are already the source of
+ * truth and just need checking on.
+ */
+async function reachEveryChoiceChecked(page: Page): Promise<void> {
   const all = page.getByRole("switch", { name: "All skills", exact: true });
-  await expect(all).toBeChecked();
-  await all.click();
+  if (await all.isChecked()) {
+    await all.click();
+    return;
+  }
+  for (const name of await listSkillChoices(page)) {
+    const checkbox = page.getByRole("checkbox", { name, exact: true });
+    if (!(await checkbox.isChecked())) await checkbox.click();
+  }
+}
+
+export async function chooseCustomSkills(page: Page, selected: string[]): Promise<void> {
+  await reachEveryChoiceChecked(page);
   const keep = new Set(selected);
   for (const name of await listSkillChoices(page)) {
     if (!keep.has(name)) await page.getByRole("checkbox", { name, exact: true }).click();

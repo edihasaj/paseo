@@ -3,11 +3,20 @@ import { daemonWsRoutePattern } from "./daemon-port";
 
 type WebSocketMessage = string | Buffer;
 
+/**
+ * A regular send goes out as `send_agent_message_request`. Sending a queued
+ * prompt now goes out as the daemon-owned queue's own `agent.queue.send_now.
+ * request` (packages/client/src/daemon-client.ts) — a different RPC, not a
+ * client-side replay of the same request. Both are the wire signal that a
+ * "send it now" click actually left the client, so both are held.
+ */
+const HELD_REQUEST_TYPES = ["send_agent_message_request", "agent.queue.send_now.request"] as const;
+
 interface SendAgentMessageRequest {
-  type: "send_agent_message_request";
+  type: (typeof HELD_REQUEST_TYPES)[number];
   requestId: string;
   agentId: string;
-  /** Absent when the client sends into an idle agent. */
+  /** Only present on send_agent_message_request; absent when the client sends into an idle agent. */
   activeTurnBehavior?: string;
 }
 
@@ -20,14 +29,15 @@ function readSendRequest(message: WebSocketMessage): SendAgentMessageRequest | n
     };
     const request = envelope.type === "session" ? envelope.message : null;
     if (
-      request?.type !== "send_agent_message_request" ||
+      typeof request?.type !== "string" ||
+      !(HELD_REQUEST_TYPES as readonly string[]).includes(request.type) ||
       typeof request.requestId !== "string" ||
       typeof request.agentId !== "string"
     ) {
       return null;
     }
     return {
-      type: "send_agent_message_request",
+      type: request.type as (typeof HELD_REQUEST_TYPES)[number],
       requestId: request.requestId,
       agentId: request.agentId,
       activeTurnBehavior:
