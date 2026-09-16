@@ -18,6 +18,34 @@ import { expectWorkspaceAgentConfiguration } from "../support/helpers/command-ce
 import { expectComposerVisible } from "../support/helpers/composer";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
 
+// The "sole provider" fast path is only meaningful when the picker actually
+// sees one provider. Every real built-in provider is enabled by default on a
+// fresh host, so a machine with Claude Code, Codex, or the `gh` Copilot
+// extension installed makes this file's provider count drift with whatever
+// happens to be on PATH (see import-session-flow.spec.ts for the same
+// pattern). Pin this file's worker daemon to just the seeded `mock` provider.
+//
+// `mock-slow` is dev-only but still an enabled provider entry alongside
+// `mock`, so it counts too and has to go. It isn't one of the config
+// schema's recognized builtin IDs (protocol/provider-config.ts), so disabling
+// it validates as a "custom" override and needs a throwaway `extends`/`label`
+// to pass that check — `enabled: false` means the daemon never resolves them.
+test.use({
+  e2eDaemonConfig: {
+    version: 1,
+    agents: {
+      providers: {
+        claude: { enabled: false },
+        codex: { enabled: false },
+        copilot: { enabled: false },
+        opencode: { enabled: false },
+        pi: { enabled: false },
+        "mock-slow": { enabled: false, extends: "claude", label: "Mock Slow Provider" },
+      },
+    },
+  },
+});
+
 const PROFILE = {
   id: "agent_profile_e2e_ui_work",
   name: "UI work",
