@@ -520,6 +520,8 @@ npm run build:app-deps     # highlight -> protocol -> client -> expo-two-way-aud
 
 Use `npm run build:server` whenever you have changed any daemon/server-facing package and need clean cross-package types or runtime behavior.
 
+`npm run typecheck` guards this for you. Because typechecking resolves these packages through their built `dist/*.d.ts`, a stale `dist` makes consuming packages report errors that are not in the code — typically a newly added session event or client method reported as missing, right after a merge or a branch switch. A root `pretypecheck` step (`scripts/ensure-workspace-deps.mjs`) hashes the guarded packages' sources and rebuilds them only when those bytes changed, so the common case costs about 50ms and a genuinely stale tree is rebuilt instead of producing phantom errors. It hashes content rather than timestamps because `@getpaseo/protocol` regenerates a validator file into `src/` on every typecheck. Use `node scripts/ensure-workspace-deps.mjs --check` to fail instead of rebuild, which is the right behavior in CI, where the build is an explicit step.
+
 The app Metro config disables Watchman and uses Metro's node crawler for exports. Keep that invariant unless you have verified production app exports on machines with and without Watchman installed; distro Watchman builds can differ in capabilities and change Metro's crawl behavior.
 
 For tighter loops, you can rebuild a single workspace:
