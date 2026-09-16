@@ -463,15 +463,14 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 }
 
 /** Sender name + 24px identity avatar under the bubble. Desktop only, and only
- * when the message's host has a badge (follows that host's own visibility setting). */
-function UserMessageIdentityRow({
-  hostBadge,
-  isPending,
-}: {
-  hostBadge: HostBadgeModel | null;
-  isPending: boolean;
-}) {
-  if (isPending || !hostBadge) {
+ * when the message's host has a badge (follows that host's own visibility setting).
+ * Renders identically for an optimistic local echo and its canonical replacement —
+ * the host badge is known locally at submit time, so gating on pending status would
+ * mount/unmount this row when the canonical echo arrives and shift the message's
+ * height (see e2e/browser/agent-consecutive-turns.spec.ts, "keeps a submitted
+ * message height stable when its canonical echo arrives"). */
+function UserMessageIdentityRow({ hostBadge }: { hostBadge: HostBadgeModel | null }) {
+  if (!hostBadge) {
     return null;
   }
   const avatarColorName = resolveUserMessageAvatarColorName(hostBadge);
@@ -629,7 +628,7 @@ export const UserMessage = memo(function UserMessage({
             </Text>
           ) : null}
         </View>
-        <UserMessageIdentityRow hostBadge={hostBadge} isPending={isPending} />
+        <UserMessageIdentityRow hostBadge={hostBadge} />
         {hasText ? (
           <View
             style={trailingRowStyle}
