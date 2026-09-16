@@ -337,9 +337,11 @@ test.describe("plugin workspace panels and Command Center", () => {
         await page.goto(buildAgentRoute(primary.workspaceId, agent.id));
         await page.waitForURL(isSettledWorkspaceUrl, { timeout: 60_000 });
         await submitMessage(page, "emit 1 agent stream updates");
-        await expect(page.getByRole("button", { name: "1/1 tasks" })).toBeVisible({
-          timeout: 30_000,
-        });
+        // The task list restyle (599cfcb92) replaced the single "1/1 tasks" pill button
+        // with a collapsible card (title + "N of M" summary); the card's testID survived.
+        const taskProgress = page.getByTestId("agent-task-list-header");
+        await expect(taskProgress).toBeVisible({ timeout: 30_000 });
+        await expect(taskProgress.getByText(/1 of 1/)).toBeVisible();
         const composerPill = page.getByRole("button", { name: "Open composer review" });
         await expect(composerPill).toContainText("Review");
         await capture(page, testInfo, "plugin-composer-pill-wide");

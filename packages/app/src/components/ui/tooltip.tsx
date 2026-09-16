@@ -112,10 +112,16 @@ function useControllableOpenState({
   const value = isControlled ? open : internalOpen;
   const setValue = useCallback(
     (next: boolean) => {
+      // Web wires the same handler to onHoverIn, onPointerEnter, and onMouseEnter
+      // (see TooltipTrigger below) so one physical hover gesture can call this more
+      // than once with the same target value. Only forward a genuine transition:
+      // callers with a side-effecting onOpenChange (e.g. refetching data when the
+      // tooltip opens) would otherwise refetch multiple times per hover.
+      if (next === value) return;
       if (!isControlled) setInternalOpen(next);
       onOpenChange?.(next);
     },
-    [isControlled, onOpenChange],
+    [isControlled, onOpenChange, value],
   );
   return [value, setValue];
 }
@@ -368,20 +374,22 @@ export function TooltipTrigger({
   const triggerProps = {
     ...props,
     disabled,
-    onHoverIn: handleHoverIn,
-    onHoverOut: handleHoverOut,
     onFocus: handleFocus,
     onBlur: handleBlur,
     onPress: handlePress,
+    // Pointer events are the single hover source on web; RN Web's own Pressable-derived
+    // onHoverIn/onHoverOut and the raw onMouseEnter/onMouseLeave DOM events both fire for
+    // the same physical hover, so wiring all three to the same handler triples the calls
+    // onOpenChange makes per hover. Native has no pointer events, so it keeps onHoverIn.
     ...(isWeb
       ? ({
-          // RN Web's hover handling can vary across environments; pointer events are the most reliable.
           onPointerEnter: handleHoverIn,
           onPointerLeave: handleHoverOut,
-          onMouseEnter: handleHoverIn,
-          onMouseLeave: handleHoverOut,
         } as object)
-      : null),
+      : ({
+          onHoverIn: handleHoverIn,
+          onHoverOut: handleHoverOut,
+        } as object)),
   };
 
   if (asChild) {
@@ -398,15 +406,25 @@ export function TooltipTrigger({
       ...Object.assign({}, rawProps),
       ...triggerProps,
       disabled: Reflect.get(rawProps, "disabled") || disabled,
-      onHoverIn: composeEventHandlers(Reflect.get(rawProps, "onHoverIn"), handleHoverIn),
-      onHoverOut: composeEventHandlers(Reflect.get(rawProps, "onHoverOut"), handleHoverOut),
       onFocus: composeEventHandlers(Reflect.get(rawProps, "onFocus"), handleFocus),
       onBlur: composeEventHandlers(Reflect.get(rawProps, "onBlur"), handleBlur),
       onPress: composeEventHandlers(Reflect.get(rawProps, "onPress"), handlePress),
-      onPointerEnter: composeEventHandlers(Reflect.get(rawProps, "onPointerEnter"), handleHoverIn),
-      onPointerLeave: composeEventHandlers(Reflect.get(rawProps, "onPointerLeave"), handleHoverOut),
-      onMouseEnter: composeEventHandlers(Reflect.get(rawProps, "onMouseEnter"), handleHoverIn),
-      onMouseLeave: composeEventHandlers(Reflect.get(rawProps, "onMouseLeave"), handleHoverOut),
+      // See the non-asChild triggerProps above: only one hover source per platform.
+      ...(isWeb
+        ? {
+            onPointerEnter: composeEventHandlers(
+              Reflect.get(rawProps, "onPointerEnter"),
+              handleHoverIn,
+            ),
+            onPointerLeave: composeEventHandlers(
+              Reflect.get(rawProps, "onPointerLeave"),
+              handleHoverOut,
+            ),
+          }
+        : {
+            onHoverIn: composeEventHandlers(Reflect.get(rawProps, "onHoverIn"), handleHoverIn),
+            onHoverOut: composeEventHandlers(Reflect.get(rawProps, "onHoverOut"), handleHoverOut),
+          }),
     };
 
     const existingRefProp = Reflect.get(rawProps, triggerRefProp);
