@@ -918,6 +918,133 @@ describe("createWebStreamStrategy", () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
+  it("keeps upward-wheel evidence alive across an arbitrarily delayed scroll event", () => {
+    // Regression for the rewind-menu CI flake: evidence used to expire on a fixed 100ms
+    // wall-clock deadline. Under a congested main thread, the resulting 'scroll' event from
+    // this same wheel input can be delayed past that deadline before it is ever processed,
+    // permanently losing the "user scrolled up" signal and leaving `followOutput` stuck true
+    // for as long as content keeps growing. This test drives requestAnimationFrame manually
+    // so it can prove the fix's actual property directly: evidence must survive an arbitrarily
+    // long real-world delay, and must only clear once two real animation frames have elapsed
+    // — not once some number of milliseconds has passed.
+    const scrollTo = vi.fn(function (this: HTMLElement, options?: ScrollToOptions | number) {
+      const top = typeof options === "object" ? (options.top ?? 0) : 0;
+      Object.defineProperty(this, "scrollTop", { configurable: true, value: top });
+    });
+    HTMLElement.prototype.scrollTo = scrollTo;
+
+    const pendingFrames: FrameRequestCallback[] = [];
+    const originalRaf = window.requestAnimationFrame;
+    const originalCaf = window.cancelAnimationFrame;
+    let nextFrameId = 1;
+    const frameCallbacksById = new Map<number, FrameRequestCallback>();
+    window.requestAnimationFrame = (callback: FrameRequestCallback): number => {
+      const id = nextFrameId++;
+      frameCallbacksById.set(id, callback);
+      pendingFrames.push(callback);
+      return id;
+    };
+    window.cancelAnimationFrame = (id: number): void => {
+      const callback = frameCallbacksById.get(id);
+      if (callback) {
+        const index = pendingFrames.indexOf(callback);
+        if (index !== -1) pendingFrames.splice(index, 1);
+        frameCallbacksById.delete(id);
+      }
+    };
+    // A wall-clock deadline (the bug) and a frame-count deadline (the fix) agree when a test
+    // runs at real speed with no delay between the wheel and its resulting scroll event —
+    // which is exactly why this bug shipped and stayed green in fast local runs. Advancing
+    // `performance.now()` past the old 100ms window, independent of whether any animation
+    // frame actually ran, is what makes this test fail against the old wall-clock deadline
+    // and pass against the fix: the real congestion this reproduces delays the scroll event
+    // in wall-clock time without necessarily completing a paint.
+    const nowSpy = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      const strategy = createWebStreamStrategy({ isMobileBreakpoint: true });
+      const renderInput: StreamRenderInput = {
+        agentId: "agent",
+        segments: {
+          historyVirtualized: [],
+          historyMounted: [userMessage(1), userMessage(2)],
+          liveHead: [],
+        },
+        boundary: {
+          hasVirtualizedHistory: false,
+          hasMountedHistory: true,
+          hasLiveHead: false,
+        },
+        renderers: createRenderers(vi.fn()),
+        listEmptyComponent: null,
+        viewportRef: React.createRef<StreamViewportHandle>(),
+        routeBottomAnchorRequest: null,
+        isAuthoritativeHistoryReady: true,
+        onNearBottomChange: vi.fn(),
+        onNearHistoryStart: vi.fn().mockReturnValue(true),
+        isLoadingOlderHistory: false,
+        hasOlderHistory: false,
+        olderHistoryProgressKey: null,
+        scrollEnabled: true,
+        listStyle: null,
+        baseListContentContainerStyle: null,
+        forwardListContentContainerStyle: null,
+      };
+      container = document.createElement("div");
+      document.body.appendChild(container);
+      root = createRoot(container);
+
+      act(() => root?.render(strategy.render(renderInput)));
+      const scrollContainer = container.querySelector('[data-testid="agent-chat-scroll"]');
+      if (!(scrollContainer instanceof HTMLElement)) {
+        throw new Error("Expected agent chat scroll container");
+      }
+      Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, value: 500 });
+      Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1500 });
+      Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, value: 1000 });
+      act(() => scrollContainer.dispatchEvent(new Event("scroll")));
+      scrollTo.mockClear();
+
+      act(() => {
+        scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -900 }));
+      });
+      // The clearing callback is scheduled (two nested rAFs) but neither has run — no
+      // animation frame has completed yet, only wall-clock time is presumed to have passed.
+      expect(pendingFrames.length).toBeGreaterThan(0);
+
+      // Simulate the congested-runner scenario directly: over 100ms of wall-clock time
+      // passes — enough to have expired the old fixed deadline — before the browser's
+      // resulting 'scroll' event is actually processed, with no animation frame in between.
+      nowSpy.mockReturnValue(500);
+
+      Object.defineProperty(scrollContainer, "scrollTop", { configurable: true, value: 100 });
+      act(() => {
+        scrollContainer.dispatchEvent(new Event("scroll"));
+      });
+
+      // Content keeps growing the way it does while a response is still streaming; if the
+      // upward scroll had not been recognized, this would force the view back to the bottom.
+      Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, value: 1800 });
+      act(() => {
+        root?.render(
+          strategy.render({
+            ...renderInput,
+            segments: { ...renderInput.segments, liveHead: [userMessage(3)] },
+            boundary: { ...renderInput.boundary, hasLiveHead: true },
+          }),
+        );
+      });
+      expect(scrollTo).not.toHaveBeenCalled();
+
+      // The two scheduled frames are still pending — confirms the assertion above was
+      // exercising the "not yet expired" path and not some other reason scrollTo was skipped.
+      expect(pendingFrames.length).toBeGreaterThan(0);
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+      window.cancelAnimationFrame = originalCaf;
+      nowSpy.mockRestore();
+    }
+  });
+
   it("reattaches follow-output when a small scroll range returns to bottom", async () => {
     const scrollTo = vi.fn(function (
       this: HTMLElement,

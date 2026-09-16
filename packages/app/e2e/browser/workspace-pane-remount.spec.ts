@@ -245,16 +245,38 @@ test.describe("Workspace pane mounting", () => {
       const chatScroll = page.locator('[data-testid="agent-chat-scroll"]:visible').first();
       const originalTranscript = await captureRenderedNode(chatScroll);
 
+      // Every turn's assistant response repeats the same three file links, so a
+      // locator that just grabs "the first alpha.md link in the page" resolves to
+      // whichever turn happens to be first in DOM order — not the one sitting at the
+      // reader's current position. A real reader can only click what is in front of
+      // them, at the anchor turn; scope the locator to that turn's own assistant
+      // row so the click lands on the link actually near `readingPosition`, instead
+      // of one from turn 0 whose distance from the anchor is exactly the kind of
+      // large, arbitrary scroll this test must not produce on its own.
+      const anchorRow = page
+        .locator("[data-history-row-id]")
+        .filter({ has: page.getByTestId("user-message").filter({ hasText: anchorPrompt }) });
+      const anchorAssistantRow = anchorRow.locator(
+        "xpath=following-sibling::*[@data-history-row-id][1]",
+      );
+
       const fileTabs = page.locator('[data-testid^="workspace-tab-file_"]');
       for (const [index, fileName] of fileNames.entries()) {
         // Mirror the real repro: click a link from the chat tab, then return to
         // chat (as the bug report describes) before opening the next file link.
         await chatTab.click();
         await expect(chatTab).toHaveAttribute("aria-selected", "true");
-        const link = page
-          .getByRole("link", { name: fileName, exact: true })
-          .filter({ visible: true })
-          .first();
+        // AssistantMarkdownLink (assistant-file-links/link.tsx) wraps the real,
+        // positioned link element in a native `<a>` used only to keep the browser's
+        // own "copy link address" affordance; that `<a>` is `display: contents` (no
+        // box of its own) and still exposes an ARIA "link" role even though its
+        // navigation is fully suppressed, so `getByRole("link")` matches it *and*
+        // the real inner element, in that order. Taking `.first()` grabs the
+        // geometry-less outer `<a>`, whose empty bounding box sends Playwright's
+        // click-time scroll-into-view to an arbitrary position instead of this
+        // link's actual location — exactly the kind of unrelated scroll this test
+        // exists to rule out. `.last()` is the real, positioned element.
+        const link = anchorAssistantRow.getByRole("link", { name: fileName, exact: true }).last();
         await expect(link).toBeVisible({ timeout: 15_000 });
         await link.click();
         await expect(fileTabs).toHaveCount(index + 1, { timeout: 15_000 });
