@@ -59,7 +59,6 @@ const AUTO_SCROLL_RESUME_THRESHOLD_PX = 1;
 const HISTORY_START_SETTLE_FRAMES = 2;
 const HISTORY_START_SLOT_HEIGHT_PX = 32;
 const CONTENT_PADDING_TOP_PX = 16;
-const UPWARD_INPUT_EVIDENCE_TIMEOUT_MS = 100;
 const VIRTUALIZER_SCROLL_MARGIN_PX = HISTORY_START_SLOT_HEIGHT_PX + CONTENT_PADDING_TOP_PX;
 // A row has to clear this much of the viewport top before the next one takes over as the
 // reading position, so a row resting exactly on the edge does not flip back and forth.
@@ -337,7 +336,8 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       }
     | null
   >(null);
-  const upwardInputEvidenceUntilRef = useRef(0);
+  const upwardInputEvidenceRef = useRef(false);
+  const upwardInputEvidenceClearFrameRef = useRef<number | null>(null);
   const lastTouchClientYRef = useRef<number | null>(null);
   const pendingAutoScrollFrameRef = useRef<number | null>(null);
   const pendingAutoScrollTimeoutRef = useRef<number | null>(null);
@@ -626,14 +626,41 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     mouseScrollGestureRef.current = null;
   }, []);
 
-  const clearUpwardInputEvidence = useCallback(() => {
-    upwardInputEvidenceUntilRef.current = 0;
+  const cancelUpwardInputEvidenceClear = useCallback(() => {
+    const pendingFrame = upwardInputEvidenceClearFrameRef.current;
+    if (pendingFrame !== null) {
+      upwardInputEvidenceClearFrameRef.current = null;
+      window.cancelAnimationFrame(pendingFrame);
+    }
   }, []);
 
+  const clearUpwardInputEvidence = useCallback(() => {
+    upwardInputEvidenceRef.current = false;
+    cancelUpwardInputEvidenceClear();
+  }, [cancelUpwardInputEvidenceClear]);
+
+  // A wheel/key/touch handler marks evidence of upward intent; handleDomScroll reads it to
+  // tell a user-driven upward scroll apart from a programmatic one (e.g. a virtualizer resize
+  // correction). This used to expire on a fixed wall-clock timeout (100ms) measured from the
+  // input event. Under real contention that races the browser's own event queue: the 'scroll'
+  // event this same wheel input produces is dispatched on the same congested main thread, so a
+  // busy thread can delay it past a fixed millisecond deadline before handleDomScroll ever runs
+  // — losing the "user scrolled up" signal and leaving `followOutput` stuck true, which then
+  // fights every subsequent auto-scroll-to-bottom against the reader's own scroll for as long as
+  // content keeps growing. Clearing after two animation frames instead of N milliseconds bounds
+  // the window to "before the next two paints" rather than to wall-clock time: a congested main
+  // thread delays this clear by the same congestion that delays the resulting scroll event,
+  // instead of the two racing on independent clocks.
   const markUpwardInputEvidence = useCallback(() => {
-    upwardInputEvidenceUntilRef.current =
-      window.performance.now() + UPWARD_INPUT_EVIDENCE_TIMEOUT_MS;
-  }, []);
+    upwardInputEvidenceRef.current = true;
+    cancelUpwardInputEvidenceClear();
+    upwardInputEvidenceClearFrameRef.current = window.requestAnimationFrame(() => {
+      upwardInputEvidenceClearFrameRef.current = window.requestAnimationFrame(() => {
+        upwardInputEvidenceClearFrameRef.current = null;
+        upwardInputEvidenceRef.current = false;
+      });
+    });
+  }, [cancelUpwardInputEvidenceClear]);
 
   useLayoutEffect(() => {
     if (isActive) {
@@ -791,7 +818,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     const hasUpwardInputEvidence =
       mouseGesture?.kind === "scrollbar" ||
       (mouseGesture?.kind === "autoscroll" && mouseGesture.hasUpwardEvidence) ||
-      window.performance.now() < upwardInputEvidenceUntilRef.current;
+      upwardInputEvidenceRef.current;
 
     if (!followOutputRef.current && isAtBottom && scrolledDown && !isJumpSettling()) {
       setFollowOutput(true);
