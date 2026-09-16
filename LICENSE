@@ -1,11 +1,15 @@
-Copyright (c) 2025-present Mohamed Boudra
+Copyright (c) 2025-present Mohamed Boudra (Paseo)
+Copyright (c) 2026-present Edi Hasaj (Stroll modifications)
+
+Stroll is a derivative work of Paseo (https://github.com/getpaseo/paseo).
+See NOTICE for attribution details.
 
 Portions of this software are licensed as follows:
 
-* Third-party components incorporated into Paseo remain licensed under
-  the licenses provided by their respective copyright holders.
-* Except for those third-party components, Paseo is licensed under the
-  Apache License, Version 2.0, reproduced below.
+* Third-party components incorporated into Stroll and Paseo remain licensed
+  under the licenses provided by their respective copyright holders.
+* Except for those third-party components, Stroll and Paseo are licensed
+  under the Apache License, Version 2.0, reproduced below.
 
 
                                  Apache License
