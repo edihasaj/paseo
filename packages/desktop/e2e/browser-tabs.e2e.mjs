@@ -31,6 +31,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+// The guest-side element selector (packages/desktop/src/features/browser-keyboard/guest-preload.ts)
+// signals "active" by toggling the `__paseo-selecting` class on <html>, not by
+// setting a global. Checking a `globalThis.__paseoSelector` boolean here would
+// always read false and silently mask every assertion that depends on it.
+const GUEST_SELECTOR_ACTIVE_FUNCTION =
+  "() => document.documentElement.classList.contains('__paseo-selecting')";
+
 async function reservePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -245,7 +252,7 @@ async function waitForGuestSelector(client, browserId) {
   while (Date.now() < deadline) {
     const evaluated = await callBrowserTool(client, "browser_evaluate", {
       browserId,
-      function: "() => Boolean(globalThis.__paseoSelector)",
+      function: GUEST_SELECTOR_ACTIVE_FUNCTION,
     });
     if (JSON.parse(evaluated.resultJson) === true) {
       return true;
@@ -898,7 +905,7 @@ async function runRegression({
   );
   const selectorDuringLoad = await callBrowserTool(client, "browser_evaluate", {
     browserId,
-    function: "() => Boolean(globalThis.__paseoSelector)",
+    function: GUEST_SELECTOR_ACTIVE_FUNCTION,
   });
   assert(
     JSON.parse(selectorDuringLoad.resultJson) === false,
@@ -953,7 +960,7 @@ async function runRegression({
   await delay(20_500);
   const selectorAfterPriorTimeout = await callBrowserTool(client, "browser_evaluate", {
     browserId,
-    function: "() => Boolean(globalThis.__paseoSelector)",
+    function: GUEST_SELECTOR_ACTIVE_FUNCTION,
   });
   if (JSON.parse(selectorAfterPriorTimeout.resultJson) !== true) {
     failures.push("a previous selector timeout does not destroy the current selector session");
