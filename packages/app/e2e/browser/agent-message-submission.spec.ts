@@ -374,6 +374,23 @@ async function queueMessage(page: Page, prompt: string): Promise<void> {
   await sendDraftToQueue(page);
 }
 
+/**
+ * Clicks "Send queued message now" for the row holding `prompt`. The button
+ * only receives pointer events once its row is hovered (composer/index.tsx
+ * QueuedMessageRow — actions are opacity/pointerEvents-gated, per
+ * docs/hover.md), which two adjacent rows makes brittle for a locator that
+ * targets the button directly: Playwright's own actionability check treats
+ * the button as blocked until the row is already hovered, but nothing ever
+ * dispatches the hover in the first place because the check keeps failing
+ * before the pointer ever moves. Hovering the row (always interactive, never
+ * gated) first breaks that deadlock.
+ */
+async function sendQueuedRowNow(page: Page, prompt: string): Promise<void> {
+  const row = page.getByTestId("composer-queue-row").filter({ hasText: prompt });
+  await row.hover();
+  await row.getByRole("button", { name: "Send queued message now" }).click();
+}
+
 async function expectQueuedSendFailuresRestored(page: Page, prompts: string[]): Promise<void> {
   await expect(page.getByRole("button", { name: "Send queued message now" })).toHaveCount(
     prompts.length,
@@ -1246,18 +1263,24 @@ test.describe("Agent message submission", () => {
   }, testInfo) => {
     test.setTimeout(120_000);
     const gate = await gateNextAgentMessage(page);
+    // Five-minute stream, not one: the two hover-then-click round trips below
+    // need to land while this turn is still active. A one-minute turn leaves
+    // no margin under CI load — the turn can finish and auto-drain the first
+    // queued message before the click resolves, which then races the queue's
+    // own send and flakes on nothing but machine speed (see the same
+    // reasoning in composer-queue-bounds.spec.ts).
     const agent = await startRunningMockAgent(page, {
       prefix: `overlapping-queued-send-${testInfo.workerIndex}-`,
-      model: "one-minute-stream",
+      model: "five-minute-stream",
       prompt: "Keep the agent running while messages queue.",
     });
     const prompts = ["Restore the first queued send.", "Restore the second queued send."];
     try {
       await queueMessage(page, prompts[0]);
       await queueMessage(page, prompts[1]);
-      await page.getByRole("button", { name: "Send queued message now" }).first().click();
+      await sendQueuedRowNow(page, prompts[0]);
       await gate.waitForRequest(1);
-      await page.getByRole("button", { name: "Send queued message now" }).first().click();
+      await sendQueuedRowNow(page, prompts[1]);
       await gate.waitForRequest(2);
       await gate.disconnect();
       await expectQueuedSendFailuresRestored(page, prompts);
