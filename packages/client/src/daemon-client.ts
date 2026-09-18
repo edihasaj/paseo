@@ -26,6 +26,7 @@ import {
   DaemonUpdateResponseSchema,
   SessionInboundMessageSchema,
   type ActiveTurnBehavior,
+  type PromptDispatchStatus,
   type ServerInfoStatusPayload,
 } from "@getpaseo/protocol/messages";
 import { validateWSOutboundMessage } from "@getpaseo/protocol/validation/ws-outbound";
@@ -3424,12 +3425,18 @@ export class DaemonClient {
     agentId: string,
     promptId: string,
     requestId?: string,
+    activeTurnBehavior?: ActiveTurnBehavior,
   ): Promise<
     Extract<SessionOutboundMessage, { type: "agent.queue.send_now.response" }>["payload"]
   > {
     return this.sendCorrelatedSessionRequest({
       requestId,
-      message: { type: "agent.queue.send_now.request", agentId, promptId },
+      message: {
+        type: "agent.queue.send_now.request",
+        agentId,
+        promptId,
+        ...(activeTurnBehavior ? { activeTurnBehavior } : {}),
+      },
       responseType: "agent.queue.send_now.response",
     });
   }
@@ -3510,7 +3517,7 @@ export class DaemonClient {
     agentId: string,
     text: string,
     options?: SendMessageOptions,
-  ): Promise<void> {
+  ): Promise<{ dispatch: PromptDispatchStatus | null }> {
     const requestId = this.createRequestId();
     const messageId = options?.messageId ?? crypto.randomUUID();
     const message = SessionInboundMessageSchema.parse({
@@ -3540,6 +3547,7 @@ export class DaemonClient {
     if (!payload.accepted) {
       throw new Error(payload.error ?? "sendAgentMessage rejected");
     }
+    return { dispatch: payload.dispatch ?? null };
   }
 
   async sendMessage(agentId: string, text: string, options?: SendMessageOptions): Promise<void> {

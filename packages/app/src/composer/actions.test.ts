@@ -199,6 +199,7 @@ function createFakeSendClient(
         options.beforeRejection?.(call);
         throw options.rejection;
       }
+      return { dispatch: null };
     },
     uploadFile: async () => ({ requestId: "test", file: null, error: null }),
   };

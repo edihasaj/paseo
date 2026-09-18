@@ -168,6 +168,9 @@ export const zhCN: TranslationResources = {
       pasteImageFailed: "无法粘贴图片",
       fileTooLarge: "{{fileName}} is too large (max {{size}})",
     },
+    notices: {
+      steerQueued: "Couldn't steer mid-tool. Queued instead.",
+    },
     clientCommands: {
       archiveAgent: "归档当前 Agent",
       freshDraft: "归档此 Agent 并开始新的草稿",

@@ -168,6 +168,9 @@ export const ko: TranslationResources = {
       pasteImageFailed: "이미지를 붙여넣지 못했습니다.",
       fileTooLarge: "{{fileName}}이(가) 너무 큽니다 (최대 {{size}})",
     },
+    notices: {
+      steerQueued: "Couldn't steer mid-tool. Queued instead.",
+    },
     clientCommands: {
       archiveAgent: "현재 에이전트 보관",
       freshDraft: "이 에이전트를 보관하고 새 초안을 시작합니다",

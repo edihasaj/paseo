@@ -66,7 +66,8 @@ hashes, never prompts, environment values, or credentials.
 Before messaging an archived workspace, call `workspace.recovery.inspect.request`, then
 `workspace.recovery.restore.request` and await success. The native message handler unarchives the
 agent and loads its persisted provider session. `activeTurnBehavior: "steer"` uses the provider's
-native steering behavior, including Paseo's existing behavior when that provider cannot steer.
+native steering behavior; when the provider cannot admit the steer, the turn is never interrupted —
+the message is queued for delivery once the turn ends (see [providers.md](providers.md)).
 Execution completion and arrival-specific output authority remain Hub responsibilities.
 
 The older `hub.execution.*` RPCs remain accepted for existing clients. Their execution ownership

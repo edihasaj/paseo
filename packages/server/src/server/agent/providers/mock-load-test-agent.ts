@@ -732,6 +732,7 @@ export class MockLoadTestAgentSession implements AgentSession {
   private readonly rewindError: string | null;
   private remainingPromptRejections: number;
   private remainingSteerFailures: number;
+  private remainingSteerUnavailable: number;
 
   constructor(options: { config: AgentSessionConfig; sessionId: string; logger?: Logger }) {
     this.id = options.sessionId;
@@ -767,6 +768,9 @@ export class MockLoadTestAgentSession implements AgentSession {
         : 0;
     this.remainingSteerFailures = getPositiveFeatureInteger(
       options.config.featureValues?.mockSteerAmbiguousFailures,
+    );
+    this.remainingSteerUnavailable = getPositiveFeatureInteger(
+      options.config.featureValues?.mockSteerUnavailableCount,
     );
   }
 
@@ -1025,6 +1029,10 @@ export class MockLoadTestAgentSession implements AgentSession {
     options: SteerActiveTurnOptions,
   ): Promise<SteerResult> {
     if (this.activeTurn?.turnId !== options.expectedTurnId) {
+      return { status: "unavailable" };
+    }
+    if (this.remainingSteerUnavailable > 0) {
+      this.remainingSteerUnavailable -= 1;
       return { status: "unavailable" };
     }
     if (this.remainingSteerFailures > 0) {

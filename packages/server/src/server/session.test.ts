@@ -93,6 +93,7 @@ interface SessionHandlerInternals {
   handleStashPopRequest(params: unknown): Promise<unknown>;
   createPaseoWorktree(params: unknown): Promise<unknown>;
   handleStartWorkspaceScriptRequest(params: unknown): Promise<unknown>;
+  drainAgentQueue(agentId: string): Promise<void>;
 }
 
 function asSessionInternals(session: Session): SessionHandlerInternals {
@@ -207,6 +208,221 @@ test("agent queue RPC persists a prompt and returns the canonical snapshot", asy
       error: null,
     },
   });
+});
+
+test("agent.queue.send_now.request keeps the prompt queued when a requested steer is unavailable", async () => {
+  const messages: SessionOutboundMessage[] = [];
+  const queued = {
+    id: "queued-1",
+    agentId: "agent-1",
+    text: "send this now",
+    attachments: [],
+    createdAt: "2026-08-24T12:00:00.000Z",
+    createdByClientId: "other-client",
+  };
+  const queueStore = {
+    subscribe: vi.fn(() => () => {}),
+    take: vi.fn(async () => queued),
+    enqueue: vi.fn(async () => ({ ...queued, id: "queued-2", createdByClientId: "test-client" })),
+    restoreFront: vi.fn(async () => {}),
+    list: vi.fn(async () => []),
+  };
+  const replaceAgentRun = vi.fn();
+  const streamAgent = vi.fn();
+  const session = createSessionForTest({
+    messages,
+    agentStorage: {
+      get: vi.fn(async () => ({ id: "agent-1" })),
+      queueStore,
+    },
+    agentManager: {
+      getAgent: vi.fn(() => ({ id: "agent-1", provider: "codex", lifecycle: "running" })),
+      tryRunOutOfBand: vi.fn(() => false),
+      hasInFlightRun: vi.fn(() => true),
+      waitForAgentClose: vi.fn(async () => {}),
+      steerOrReplaceActiveTurn: vi.fn(async () => ({ status: "unavailable" as const })),
+      replaceAgentRun,
+      streamAgent,
+    },
+  });
+
+  await session.handleMessage({
+    type: "agent.queue.send_now.request",
+    requestId: "send-now-steer",
+    agentId: "agent-1",
+    promptId: "queued-1",
+    activeTurnBehavior: "steer",
+  });
+
+  expect(queueStore.take).toHaveBeenCalledWith("agent-1", "queued-1");
+  expect(queueStore.restoreFront).not.toHaveBeenCalled();
+  expect(replaceAgentRun).not.toHaveBeenCalled();
+  expect(streamAgent).not.toHaveBeenCalled();
+  expect(queueStore.enqueue).toHaveBeenCalledWith(
+    expect.objectContaining({ agentId: "agent-1", text: "send this now" }),
+  );
+  expect(messages).toContainEqual(
+    expect.objectContaining({
+      type: "agent.queue.send_now.response",
+      payload: expect.objectContaining({
+        requestId: "send-now-steer",
+        dispatch: "queued_fallback",
+        error: null,
+      }),
+    }),
+  );
+});
+
+test("agent.queue.send_now.request without a behavior still interrupts, matching every daemon before this field existed", async () => {
+  const messages: SessionOutboundMessage[] = [];
+  const queued = {
+    id: "queued-1",
+    agentId: "agent-1",
+    text: "send this now",
+    attachments: [],
+    createdAt: "2026-08-24T12:00:00.000Z",
+    createdByClientId: "other-client",
+  };
+  const queueStore = {
+    subscribe: vi.fn(() => () => {}),
+    take: vi.fn(async () => queued),
+    restoreFront: vi.fn(async () => {}),
+    list: vi.fn(async () => [queued]),
+  };
+  const streamAgent = vi.fn(() => (async function* () {})());
+  const cancelAgentRunBefore = vi.fn(async () => {});
+  const session = createSessionForTest({
+    messages,
+    agentStorage: {
+      get: vi.fn(async () => ({ id: "agent-1" })),
+      queueStore,
+    },
+    agentManager: {
+      getAgent: vi.fn(() => ({ id: "agent-1", provider: "codex", lifecycle: "running" })),
+      tryRunOutOfBand: vi.fn(() => false),
+      hasInFlightRun: vi.fn(() => true),
+      waitForAgentClose: vi.fn(async () => {}),
+      replaceAgentRun: vi.fn(async () => {
+        await cancelAgentRunBefore();
+        return streamAgent();
+      }),
+    },
+  });
+
+  await session.handleMessage({
+    type: "agent.queue.send_now.request",
+    requestId: "send-now-legacy",
+    agentId: "agent-1",
+    promptId: "queued-1",
+  });
+
+  expect(cancelAgentRunBefore).toHaveBeenCalledTimes(1);
+  expect(messages).toContainEqual(
+    expect.objectContaining({
+      type: "agent.queue.send_now.response",
+      payload: expect.objectContaining({ requestId: "send-now-legacy", error: null }),
+    }),
+  );
+});
+
+test("send_agent_message_request queues instead of interrupting when a steer is unavailable", async () => {
+  const messages: SessionOutboundMessage[] = [];
+  const queueStore = {
+    subscribe: vi.fn(() => () => {}),
+    enqueue: vi.fn(async () => ({
+      id: "queued-1",
+      agentId: "agent-1",
+      text: "hello while busy",
+      attachments: [],
+      createdAt: "2026-08-24T12:00:00.000Z",
+      createdByClientId: "test-client",
+    })),
+  };
+  const replaceAgentRun = vi.fn();
+  const streamAgent = vi.fn();
+  const session = createSessionForTest({
+    messages,
+    agentStorage: {
+      get: vi.fn(async () => ({ id: "agent-1" })),
+      list: vi.fn(async () => [{ id: "agent-1", internal: false }]),
+      queueStore,
+    },
+    agentManager: {
+      listAgents: vi.fn(() => [{ id: "agent-1" }]),
+      getAgent: vi.fn(() => ({ id: "agent-1", provider: "codex", lifecycle: "running" })),
+      tryRunOutOfBand: vi.fn(() => false),
+      hasInFlightRun: vi.fn(() => true),
+      waitForAgentClose: vi.fn(async () => {}),
+      steerOrReplaceActiveTurn: vi.fn(async () => ({ status: "unavailable" as const })),
+      replaceAgentRun,
+      streamAgent,
+    },
+  });
+
+  await session.handleMessage({
+    type: "send_agent_message_request",
+    requestId: "send-steer-unavailable",
+    agentId: "agent-1",
+    text: "hello while busy",
+    activeTurnBehavior: "steer",
+    attachments: [],
+  });
+
+  expect(replaceAgentRun).not.toHaveBeenCalled();
+  expect(streamAgent).not.toHaveBeenCalled();
+  expect(queueStore.enqueue).toHaveBeenCalledWith(
+    expect.objectContaining({ agentId: "agent-1", text: "hello while busy" }),
+  );
+  expect(messages).toContainEqual({
+    type: "send_agent_message_response",
+    payload: {
+      requestId: "send-steer-unavailable",
+      agentId: "agent-1",
+      accepted: true,
+      dispatch: "queued_fallback",
+      error: null,
+    },
+  });
+});
+
+test("drainAgentQueue delivers a queued steer fallback once the turn is idle", async () => {
+  // Simulates the tail end of the steer-never-cancels fix: a prompt that landed in the
+  // daemon queue because a steer was unavailable must still reach the agent once its turn
+  // ends, through the same idle-drain path any other queued prompt uses (f98f067f5).
+  const queued = {
+    id: "queued-1",
+    agentId: "agent-1",
+    text: "queued while busy",
+    attachments: [],
+    createdAt: "2026-08-24T12:00:00.000Z",
+    createdByClientId: "client-1",
+  };
+  const queueStore = {
+    subscribe: vi.fn(() => () => {}),
+    take: vi.fn(async () => queued),
+    restoreFront: vi.fn(async () => {}),
+  };
+  const streamAgent = vi.fn(() => (async function* () {})());
+  const session = createSessionForTest({
+    agentStorage: {
+      get: vi.fn(async () => ({ id: "agent-1" })),
+      queueStore,
+    },
+    agentManager: {
+      getAgent: vi.fn(() => ({ id: "agent-1", provider: "codex", lifecycle: "idle" })),
+      tryRunOutOfBand: vi.fn(() => false),
+      hasInFlightRun: vi.fn(() => false),
+      waitForAgentClose: vi.fn(async () => {}),
+      streamAgent,
+    },
+  });
+
+  await asSessionInternals(session).drainAgentQueue("agent-1");
+
+  expect(queueStore.take).toHaveBeenCalledWith("agent-1");
+  expect(queueStore.restoreFront).not.toHaveBeenCalled();
+  expect(streamAgent).toHaveBeenCalledTimes(1);
+  expect(streamAgent).toHaveBeenCalledWith("agent-1", "queued while busy", undefined);
 });
 
 test("legacy cancel_agent_request reports refusal through the activity log", async () => {

@@ -37,6 +37,42 @@ export function buildAgentPrompt(
   return blocks;
 }
 
+export interface QueueableContent {
+  text: string;
+  attachments: AgentAttachment[];
+  /** True when an image block had to be dropped — the daemon queue has no slot for images. */
+  droppedImages: boolean;
+}
+
+/**
+ * Inverse of {@link buildAgentPrompt}: recover queueable `{text, attachments}` from a prompt
+ * that was already assembled into content blocks, for the rare case where a prompt needs to
+ * fall into the daemon queue after being built (an unavailable steer, for example). Image
+ * blocks are dropped — `AgentQueueStore` only persists text and non-image attachments.
+ */
+export function extractQueueableContent(prompt: AgentPromptInput): QueueableContent {
+  if (typeof prompt === "string") {
+    return { text: prompt, attachments: [], droppedImages: false };
+  }
+  const textParts: string[] = [];
+  const attachments: AgentAttachment[] = [];
+  let droppedImages = false;
+  for (const block of prompt) {
+    if (block.type === "image") {
+      droppedImages = true;
+      continue;
+    }
+    // A plain composer text block has no `mimeType`; a text *attachment* does
+    // (`TextAttachmentSchema` requires `mimeType: "text/plain"`).
+    if (block.type === "text" && !("mimeType" in block)) {
+      textParts.push(block.text);
+      continue;
+    }
+    attachments.push(block as AgentAttachment);
+  }
+  return { text: textParts.join("\n"), attachments, droppedImages };
+}
+
 export function renderPromptAttachmentAsText(attachment: AgentAttachment): string {
   switch (attachment.type) {
     case "forge_change_request": {

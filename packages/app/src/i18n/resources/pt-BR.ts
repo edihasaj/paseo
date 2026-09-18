@@ -168,6 +168,9 @@ export const ptBR: TranslationResources = {
       pasteImageFailed: "Falha ao colar a imagem",
       fileTooLarge: "{{fileName}} é grande demais (máximo {{size}})",
     },
+    notices: {
+      steerQueued: "Couldn't steer mid-tool. Queued instead.",
+    },
     clientCommands: {
       archiveAgent: "Arquivar o agente atual",
       freshDraft: "Arquivar este agente e iniciar um novo rascunho",

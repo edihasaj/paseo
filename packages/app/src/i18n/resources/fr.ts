@@ -171,6 +171,9 @@ export const fr: TranslationResources = {
       pasteImageFailed: "Impossible de coller l’image",
       fileTooLarge: "{{fileName}} is too large (max {{size}})",
     },
+    notices: {
+      steerQueued: "Couldn't steer mid-tool. Queued instead.",
+    },
     clientCommands: {
       archiveAgent: "Archiver l'agent actuel",
       freshDraft: "Archivez cet agent et démarrez un nouveau brouillon",

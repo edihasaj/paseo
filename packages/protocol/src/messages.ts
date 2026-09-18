@@ -1320,6 +1320,19 @@ const ImageAttachmentSchema = z.object({
 export const ActiveTurnBehaviorSchema = z.enum(["interrupt", "steer"]);
 export type ActiveTurnBehavior = z.infer<typeof ActiveTurnBehaviorSchema>;
 
+/**
+ * How a prompt was actually dispatched. `"queued_fallback"` means a `"steer"` request could
+ * not be admitted into the active turn — the turn was never interrupted, and the prompt was
+ * placed in the daemon queue for delivery once the turn ends instead.
+ */
+export const PromptDispatchStatusSchema = z.enum([
+  "out_of_band",
+  "steered",
+  "turn_started",
+  "queued_fallback",
+]);
+export type PromptDispatchStatus = z.infer<typeof PromptDispatchStatusSchema>;
+
 export const SendAgentMessageSchema = z.object({
   type: z.literal("send_agent_message"),
   agentId: z.string(),
@@ -1983,6 +1996,11 @@ export const AgentQueueSendNowRequestMessageSchema = z.object({
   type: z.literal("agent.queue.send_now.request"),
   agentId: z.string(),
   promptId: z.string(),
+  /**
+   * How to dispatch into a currently active turn. Defaults to `"interrupt"` — matching every
+   * daemon before this field existed — so an old client sees unchanged behavior.
+   */
+  activeTurnBehavior: ActiveTurnBehaviorSchema.optional(),
   requestId: z.string(),
 });
 
@@ -4901,6 +4919,8 @@ const AgentQueueOperationPayloadSchema = z.object({
   agentId: z.string(),
   prompts: z.array(AgentQueuedPromptPayloadSchema),
   prompt: AgentQueuedPromptPayloadSchema.nullable().optional(),
+  /** Only meaningful for `agent.queue.send_now.response`. */
+  dispatch: PromptDispatchStatusSchema.nullable().optional(),
   error: z.string().nullable(),
 });
 
@@ -5189,6 +5209,8 @@ export const SendAgentMessageResponseMessageSchema = z.object({
     requestId: z.string(),
     agentId: z.string(),
     accepted: z.boolean(),
+    /** How the prompt was dispatched. Absent from older daemons. */
+    dispatch: PromptDispatchStatusSchema.nullable().optional(),
     error: z.string().nullable(),
   }),
 });

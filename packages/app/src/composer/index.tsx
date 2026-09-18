@@ -1275,6 +1275,8 @@ function ComposerContentImpl({
   const toast = useToast();
   const toastErrorRef = useRef(toast.error);
   toastErrorRef.current = toast.error;
+  const toastShowRef = useRef(toast.show);
+  toastShowRef.current = toast.show;
   const voice = useVoiceOptional();
   const voiceToggleKeys = useShortcutKeys("voice-toggle");
   const agentInterruptKeys = useShortcutKeys("agent-interrupt");
@@ -1574,7 +1576,7 @@ function ComposerContentImpl({
       if (!client) {
         throw new Error(t("workspace.terminal.hostDisconnected"));
       }
-      await dispatchComposerAgentMessage({
+      const { dispatch } = await dispatchComposerAgentMessage({
         client,
         agentId: targetAgentId,
         text,
@@ -1593,6 +1595,9 @@ function ComposerContentImpl({
               ).turnId ?? undefined)
             : undefined,
       });
+      if (dispatch === "queued_fallback") {
+        toastShowRef.current(t("composer.notices.steerQueued"), { variant: "info" });
+      }
       onAttentionPromptSend?.();
     };
   }, [appSettings.sendBehavior, client, onAttentionPromptSend, serverId, supportsForgeSearch, t]);
@@ -2007,15 +2012,25 @@ function ComposerContentImpl({
       if (supportsAgentQueue) {
         if (!client) return;
         const result = await client
-          .sendAgentQueuePromptNow(agentId, id)
+          .sendAgentQueuePromptNow(
+            agentId,
+            id,
+            undefined,
+            appSettings.sendBehavior === "steer" ? "steer" : "interrupt",
+          )
           .catch((error: unknown) => ({
             error: error instanceof Error ? error.message : t("composer.errors.failedToSend"),
           }));
-        if (result.error) setSendError(result.error);
+        if (result.error) {
+          setSendError(result.error);
+        } else if ("dispatch" in result && result.dispatch === "queued_fallback") {
+          toastShowRef.current(t("composer.notices.steerQueued"), { variant: "info" });
+        }
         return;
       }
       if (!sendAgentMessageRef.current && !onSubmitMessageRef.current) return;
-      // Reuse the regular send path; server-side send atomically interrupts any active run.
+      // Reuse the regular send path, which already honors sendBehavior (steer vs. interrupt)
+      // and shows the queued-fallback toast when a steer can't be admitted.
       const result = await sendQueuedComposerMessageNow({
         agentId,
         messageId: id,
@@ -2028,7 +2043,7 @@ function ComposerContentImpl({
         setSendError(result.errorMessage);
       }
     },
-    [agentId, client, queueWriter, submitMessage, supportsAgentQueue, t],
+    [agentId, appSettings.sendBehavior, client, queueWriter, submitMessage, supportsAgentQueue, t],
   );
 
   const handleRemoveQueuedMessage = useCallback(
