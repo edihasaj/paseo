@@ -169,6 +169,9 @@ export const es: TranslationResources = {
       pasteImageFailed: "No se pudo pegar la imagen",
       fileTooLarge: "{{fileName}} is too large (max {{size}})",
     },
+    notices: {
+      steerQueued: "Couldn't steer mid-tool. Queued instead.",
+    },
     clientCommands: {
       archiveAgent: "Archivar el agente actual",
       freshDraft: "Archive este agente y comience un nuevo borrador",
