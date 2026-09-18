@@ -51,6 +51,11 @@ escalates the provider runtime when it supports direct process interruption, the
 the session. A successful recovery leaves the agent idle and ready for the next prompt. If the
 session cannot be restored, the agent becomes an attention error instead of remaining `running`.
 
+This section covers `interrupt`, an explicit caller choice. A `steer` intent never reaches this
+path: a steer the provider cannot admit is queued for delivery once the turn ends instead of
+canceling it. See the active-turn steering paragraph in [providers.md](providers.md) and the
+**Steer** entry in [glossary.md](glossary.md).
+
 ## Relationships
 
 Agents can launch other agents via the agent-scoped `create_agent` MCP tool. Agent-scoped creation is always asynchronous and always stamps `paseo.parent-agent-id`, pointing back at the caller. Omit `workspaceId` to use the caller's workspace, or pass an existing workspace ID returned by `create_workspace`. Placement never changes parentage.

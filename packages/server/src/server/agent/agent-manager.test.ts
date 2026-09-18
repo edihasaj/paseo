@@ -14,6 +14,7 @@ import {
   type ManagedAgent,
 } from "./agent-manager.js";
 import { AgentStorage } from "./agent-storage.js";
+import { AgentQueueStore } from "./agent-queue-store.js";
 import { InMemoryAgentTimelineStore } from "./agent-timeline-store.js";
 import { toAgentPayload } from "./agent-projections.js";
 import { projectTimelineRows } from "./timeline-projection.js";
@@ -639,7 +640,12 @@ class UnsupportedSteeringSession extends TestAgentSession {
 async function startAndSteerThroughManager(
   session: AgentSession,
   behavior: "steer" | "interrupt" = "steer",
-): Promise<{ manager: AgentManager; agentId: string; workdir: string }> {
+): Promise<{
+  manager: AgentManager;
+  agentId: string;
+  workdir: string;
+  queueStore: AgentQueueStore;
+}> {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-steer-dispatch-"));
   const client = new (class extends TestAgentClient {
     override async createSession(): Promise<AgentSession> {
@@ -647,6 +653,7 @@ async function startAndSteerThroughManager(
     }
   })();
   const manager = new AgentManager({ clients: { codex: client }, logger });
+  const queueStore = new AgentQueueStore(join(workdir, "queues"));
   const agent = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
     workspaceId: undefined,
   });
@@ -660,8 +667,9 @@ async function startAndSteerThroughManager(
     replaceRunning: true,
     activeTurnBehavior: behavior,
     runOptions: { clientMessageId: "replacement-client" },
+    queueSteerFallback: { queueStore, createdByClientId: "test-client" },
   });
-  return { manager, agentId: agent.id, workdir };
+  return { manager, agentId: agent.id, workdir, queueStore };
 }
 
 test("uses an injected timeline store without making it a production requirement", async () => {
@@ -744,16 +752,17 @@ test("retries provider history hydration after a stream failure", async () => {
   }
 });
 
-test("unavailable steer interrupts once and starts one replacement turn", async () => {
+test("unavailable steer never replaces the active turn and queues instead", async () => {
   const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
   session.steerResult = "unavailable";
-  const { manager, agentId, workdir } = await startAndSteerThroughManager(session);
+  const { manager, agentId, workdir, queueStore } = await startAndSteerThroughManager(session);
   try {
-    expect(session.interruptCount).toBe(1);
-    expect(session.startCount).toBe(2);
-    expect(manager.getTimeline(agentId)).toContainEqual(
+    expect(session.interruptCount).toBe(0);
+    expect(session.startCount).toBe(1);
+    expect(manager.getTimeline(agentId)).not.toContainEqual(
       expect.objectContaining({ type: "user_message", clientMessageId: "replacement-client" }),
     );
+    expect((await queueStore.list(agentId)).map((prompt) => prompt.text)).toEqual(["replacement"]);
   } finally {
     await manager.closeAgent(agentId);
     rmSync(workdir, { recursive: true, force: true });
@@ -974,7 +983,11 @@ test("orders a concurrent replacement after a pending accepted steer", async () 
   }
 });
 
-test("does not replace a newer foreground turn after unavailable steer fallback is admitted", async () => {
+test("an unavailable steer's queue write does not block or corrupt a turn that finishes concurrently", async () => {
+  // Before the fix, an unavailable steer replaced (canceled) the active turn, which needed
+  // a stale-admission guard against a race where the turn changed mid-replacement. That
+  // guard is gone because there is no replacement to race anymore: this proves the queue
+  // write is safely decoupled from whatever the turn does after admission returns.
   const entered = deferred<void>();
   const release = deferred<void>();
   const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
@@ -985,14 +998,23 @@ test("does not replace a newer foreground turn after unavailable steer fallback 
       return session;
     }
   })();
-  const manager = new AgentManager({
-    clients: { codex: client },
-    beforeSteerUnavailableFallback: async () => {
+  const manager = new AgentManager({ clients: { codex: client }, logger });
+  const enqueued: Array<{ text: string }> = [];
+  const queueStore: Pick<AgentQueueStore, "enqueue"> = {
+    enqueue: async (input) => {
       entered.resolve();
       await release.promise;
+      enqueued.push({ text: input.text });
+      return {
+        id: "queued-hello",
+        agentId: input.agentId,
+        text: input.text,
+        attachments: input.attachments ?? [],
+        createdAt: new Date().toISOString(),
+        createdByClientId: input.createdByClientId,
+      };
     },
-    logger,
-  });
+  };
   let agentId: string | null = null;
   let consumeB: Promise<void> | null = null;
   try {
@@ -1010,11 +1032,11 @@ test("does not replace a newer foreground turn after unavailable steer fallback 
       replaceRunning: true,
       activeTurnBehavior: "steer",
       runOptions: { clientMessageId: "hello-client" },
+      queueSteerFallback: { queueStore, createdByClientId: "test-client" },
     });
-    const rejected = expect(send).rejects.toThrow(
-      "Active turn changed before steering could be delivered",
-    );
     await entered.promise;
+    // The turn this steer targeted ends, and a new turn starts, while the queue write
+    // above is still in flight.
     session.pushEvent({ type: "turn_completed", provider: "codex", turnId: "active-turn-1" });
     await consumeA;
     const b = manager.streamAgent(agent.id, "B");
@@ -1024,7 +1046,8 @@ test("does not replace a newer foreground turn after unavailable steer fallback 
     })();
     await manager.waitForAgentRunStart(agent.id);
     release.resolve();
-    await rejected;
+    await expect(send).resolves.toEqual({ disposition: "queued_fallback" });
+    expect(enqueued).toEqual([{ text: "hello" }]);
     expect(manager.getAgent(agent.id)?.activeForegroundTurnId).toBe("active-turn-2");
     expect(session.interruptCount).toBe(0);
     expect(session.startPrompts).not.toContain("hello");
@@ -1086,32 +1109,61 @@ test("steers a tracked autonomous turn without creating a replacement run", asyn
   }
 });
 
-test("isolated rewind falls back from steering to the normal replacement path", async () => {
+test("isolated rewind steering also queues instead of replacing when unavailable", async () => {
+  // Claude reports a steer unavailable for isolated control commands like rewind
+  // (docs/providers.md). That is one of the "ordinary, not erroneous" reasons a
+  // provider declines a steer, so it must degrade the same way any other unavailable
+  // steer does: queue, never interrupt.
   const session = new SteeringTestSession({ provider: "claude", cwd: process.cwd() });
   session.steerResult = "unavailable";
-  const { manager, agentId, workdir } = await startAndSteerThroughManager(session);
+  const { manager, agentId, workdir, queueStore } = await startAndSteerThroughManager(session);
   try {
     await startAgentRun(manager, agentId, "/rewind submitted-message-id", logger, {
       replaceRunning: true,
       activeTurnBehavior: "steer",
       runOptions: { clientMessageId: "rewind-client" },
+      queueSteerFallback: { queueStore, createdByClientId: "test-client" },
     });
-    await manager.waitForAgentRunStart(agentId);
-    expect(session.interruptCount).toBe(2);
-    expect(session.startPrompts).toContain("/rewind submitted-message-id");
-    expect(manager.getTimeline(agentId)).toContainEqual(
+    expect(session.interruptCount).toBe(0);
+    expect(session.startCount).toBe(1);
+    expect(session.startPrompts).not.toContain("/rewind submitted-message-id");
+    expect(manager.getTimeline(agentId)).not.toContainEqual(
       expect.objectContaining({ type: "user_message", clientMessageId: "rewind-client" }),
     );
+    expect((await queueStore.list(agentId)).map((prompt) => prompt.text)).toEqual([
+      "replacement",
+      "/rewind submitted-message-id",
+    ]);
   } finally {
     await manager.closeAgent(agentId);
     rmSync(workdir, { recursive: true, force: true });
   }
 });
 
-test("missing steer operation interrupts once and starts one replacement turn", async () => {
+test("missing steer operation never replaces the active turn and queues instead", async () => {
   const session = new UnsupportedSteeringSession({ provider: "codex", cwd: process.cwd() });
-  const { manager, agentId, workdir } = await startAndSteerThroughManager(session);
+  const { manager, agentId, workdir, queueStore } = await startAndSteerThroughManager(session);
   try {
+    expect(session.interruptCount).toBe(0);
+    expect(session.startCount).toBe(1);
+    expect(manager.getTimeline(agentId)).not.toContainEqual(
+      expect.objectContaining({ type: "user_message", clientMessageId: "replacement-client" }),
+    );
+    expect((await queueStore.list(agentId)).map((prompt) => prompt.text)).toEqual(["replacement"]);
+  } finally {
+    await manager.closeAgent(agentId);
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
+test("explicit interrupt still replaces the active turn even when the provider could steer", async () => {
+  // "interrupt" is a deliberate choice, not a steer that degraded — it must keep
+  // canceling the turn exactly as before, and must never attempt a steer first.
+  const session = new SteeringTestSession({ provider: "codex", cwd: process.cwd() });
+  session.steerResult = "accepted";
+  const { manager, agentId, workdir } = await startAndSteerThroughManager(session, "interrupt");
+  try {
+    expect(session.steerCount).toBe(0);
     expect(session.interruptCount).toBe(1);
     expect(session.startCount).toBe(2);
     expect(manager.getTimeline(agentId)).toContainEqual(

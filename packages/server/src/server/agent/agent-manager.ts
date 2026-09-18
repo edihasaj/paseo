@@ -325,23 +325,18 @@ export interface AgentManagerOptions {
   appendSystemPrompt?: string;
   agentStreamCoalesceWindowMs?: number;
   rescueTimeouts?: AgentManagerRescueTimeouts;
-  beforeSteerUnavailableFallback?: (input: {
-    agentId: string;
-    expectedTurnId: string;
-  }) => Promise<void>;
   providerAccounts?: ProviderAccountLaunchResolver;
   logger: Logger;
 }
 
+/**
+ * `"unavailable"` means a genuinely active turn declined the steer. Despite the method's
+ * name, this never replaces (cancels) that turn — the caller owns the fallback, which is
+ * normally queuing the prompt for delivery once the turn ends (see `agent-prompt.ts`).
+ */
 export type ActiveTurnSteerDispatchResult =
-  | { status: "inactive" | "steered" }
+  | { status: "inactive" | "steered" | "unavailable" }
   | { status: "replaced"; iterator: AsyncGenerator<AgentStreamEvent> };
-
-function stripSteerOptions(options?: AgentSteerOptions): AgentRunOptions | undefined {
-  if (!options) return undefined;
-  const { clearPendingPermissions: _, ...runOptions } = options;
-  return runOptions;
-}
 
 export interface WaitForAgentOptions {
   signal?: AbortSignal;
@@ -759,7 +754,6 @@ export class AgentManager {
   private onWorkspaceStateMayHaveChanged?: (params: { cwd: string }) => void;
   private logger: Logger;
   private readonly rescueTimeouts: Required<AgentManagerRescueTimeouts>;
-  private readonly beforeSteerUnavailableFallback?: AgentManagerOptions["beforeSteerUnavailableFallback"];
   private readonly providerAccounts?: ProviderAccountLaunchResolver;
   private acceptingAgentRegistrations = true;
 
@@ -782,7 +776,6 @@ export class AgentManager {
       interruptSessionMs:
         options.rescueTimeouts?.interruptSessionMs ?? INTERRUPT_SESSION_TIMEOUT_MS,
     };
-    this.beforeSteerUnavailableFallback = options.beforeSteerUnavailableFallback;
     this.providerAccounts = options.providerAccounts;
     this.agentStreamCoalescer = new AgentStreamCoalescer({
       windowMs: options.agentStreamCoalesceWindowMs ?? AGENT_STREAM_COALESCE_DEFAULT_WINDOW_MS,
@@ -2773,17 +2766,10 @@ export class AgentManager {
       return { status: "inactive" };
     }
 
-    await this.beforeSteerUnavailableFallback?.({ agentId, expectedTurnId });
-    this.assertSteerAdmissionOwnsTurn(agent, expectedTurnId);
-    return {
-      status: "replaced",
-      iterator: await this.replaceAdmittedForegroundTurn(
-        agent,
-        expectedTurnId,
-        prompt,
-        stripSteerOptions(options),
-      ),
-    };
+    // A genuinely active turn that the provider could not admit a steer into is never
+    // replaced (canceled) here: the caller asked to steer, not to interrupt. The caller
+    // owns the fallback — typically queuing the prompt for delivery once the turn ends.
+    return { status: "unavailable" };
   }
 
   private assertSteerAdmissionOwnsTurn(agent: ActiveManagedAgent, expectedTurnId: string): void {
@@ -2831,30 +2817,6 @@ export class AgentManager {
       if (this.foregroundMutationTails.get(agentId) === tail) {
         this.foregroundMutationTails.delete(agentId);
       }
-    }
-  }
-
-  private async replaceAdmittedForegroundTurn(
-    agent: ActiveManagedAgent,
-    expectedTurnId: string,
-    prompt: AgentPromptInput,
-    options?: AgentRunOptions,
-  ): Promise<AsyncGenerator<AgentStreamEvent>> {
-    this.assertSteerAdmissionOwnsTurn(agent, expectedTurnId);
-    agent.pendingReplacement = true;
-    agent.lifecycle = "running";
-    this.touchUpdatedAt(agent);
-    this.emitState(agent);
-
-    try {
-      await this.cancelAgentRunBefore(agent.id, "replace");
-      return this.streamAgent(agent.id, prompt, options);
-    } catch (error) {
-      const latest = this.agents.get(agent.id);
-      if (latest) {
-        latest.pendingReplacement = false;
-      }
-      throw error;
     }
   }
 

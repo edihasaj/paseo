@@ -11,6 +11,7 @@ import { AgentStorage } from "./agent-storage.js";
 import {
   formatSystemNotificationPrompt,
   isSystemInjectedEnvelope,
+  sendPromptToAgent,
   setupFinishNotification,
   waitForAgentRunStartWithTimeout,
 } from "./agent-prompt.js";
@@ -262,6 +263,62 @@ function createFinishNotificationScenario(
 test("isSystemInjectedEnvelope matches the envelope formatSystemNotificationPrompt produces", () => {
   expect(isSystemInjectedEnvelope(formatSystemNotificationPrompt("child finished"))).toBe(true);
   expect(isSystemInjectedEnvelope("hello world")).toBe(false);
+});
+
+test("sendPromptToAgent queues a steer the provider could not admit without touching the active turn", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-prompt-steer-queue-"));
+  try {
+    const runningAgent: ManagedAgent = Object.create(null);
+    Reflect.set(runningAgent, "id", "busy-agent");
+    Reflect.set(runningAgent, "lifecycle", "running");
+    Reflect.set(runningAgent, "config", { title: "Busy agent" });
+
+    const agentManager = new AgentManager({ clients: {}, logger: createTestLogger() });
+    Reflect.set(agentManager, "getAgent", (agentId: string) =>
+      agentId === "busy-agent" ? runningAgent : null,
+    );
+    Reflect.set(agentManager, "tryRunOutOfBand", () => false);
+    Reflect.set(agentManager, "hasInFlightRun", () => true);
+    Reflect.set(agentManager, "steerOrReplaceActiveTurn", async () => ({
+      status: "unavailable" as const,
+    }));
+    let replaced = false;
+    let streamed = false;
+    Reflect.set(agentManager, "replaceAgentRun", async () => {
+      replaced = true;
+      return (async function* noop() {})();
+    });
+    Reflect.set(agentManager, "streamAgent", () => {
+      streamed = true;
+      return (async function* noop() {})();
+    });
+
+    // A real AgentStorage backs a real AgentQueueStore, so this proves the prompt lands
+    // in the same store `Session.drainAgentQueue` reads from on idle — not a mock stand-in.
+    const agentStorage = new AgentStorage(workdir, createTestLogger());
+
+    const result = await sendPromptToAgent({
+      agentManager,
+      agentStorage,
+      agentId: "busy-agent",
+      prompt: "hello while busy",
+      activeTurnBehavior: "steer",
+      createdByClientId: "client-1",
+      logger: createTestLogger(),
+    });
+
+    expect(result).toEqual({ disposition: "queued_fallback" });
+    expect(replaced).toBe(false);
+    expect(streamed).toBe(false);
+    const queued = await agentStorage.queueStore.list("busy-agent");
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({
+      text: "hello while busy",
+      createdByClientId: "client-1",
+    });
+  } finally {
+    rmSync(workdir, { recursive: true, force: true });
+  }
 });
 
 test("finish notifications tell the parent the child's last assistant message", async () => {

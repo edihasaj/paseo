@@ -7,6 +7,8 @@ import type {
 } from "./agent-sdk-types.js";
 import type { AgentManager, ManagedAgent } from "./agent-manager.js";
 import type { AgentStorage } from "./agent-storage.js";
+import type { AgentQueueStore } from "./agent-queue-store.js";
+import { extractQueueableContent } from "./prompt-attachments.js";
 import { ensureAgentLoaded } from "./agent-loading.js";
 import { isStaleProviderSessionError } from "./stale-provider-session-error.js";
 import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
@@ -26,23 +28,46 @@ export type AgentRunController = Pick<
   reloadAgentSession(agentId: string): Promise<unknown>;
 };
 
+/**
+ * Sentinel `createdByClientId` for prompts the daemon queues on behalf of the system
+ * (schedule fires, cross-agent notifications) rather than a specific connected client.
+ */
+export const SYSTEM_QUEUE_CLIENT_ID = "system";
+
+export interface QueueSteerFallbackContext {
+  queueStore: Pick<AgentQueueStore, "enqueue">;
+  createdByClientId: string;
+}
+
 export interface StartAgentRunOptions {
   replaceRunning?: boolean;
   activeTurnBehavior?: ActiveTurnBehavior;
   runOptions?: AgentRunOptions;
   /** Ask the provider to deny permissions blocking this steer. */
   clearPendingPermissions?: boolean;
+  /**
+   * Where to persist a steer that the provider could not admit. Required for
+   * `activeTurnBehavior: "steer"` to degrade to `"queued_fallback"` instead of silently
+   * dropping the prompt — see `steerOrReplaceActiveRun` below.
+   */
+  queueSteerFallback?: QueueSteerFallbackContext;
 }
 
-export type PromptDispatchDisposition = "out_of_band" | "steered" | "turn_started";
+export type PromptDispatchDisposition =
+  | "out_of_band"
+  | "steered"
+  | "turn_started"
+  | "queued_fallback";
 
 async function steerOrReplaceActiveRun(
   agentManager: AgentRunController,
   agentId: string,
   prompt: AgentPromptInput,
   options: StartAgentRunOptions | undefined,
+  logger: Logger,
 ): Promise<
   | { disposition: "steered" }
+  | { disposition: "queued_fallback" }
   | {
       disposition: "turn_started";
       iterator: AsyncGenerator<import("./agent-sdk-types.js").AgentStreamEvent>;
@@ -61,6 +86,29 @@ async function steerOrReplaceActiveRun(
   }
   if (result.status === "replaced") {
     return { disposition: "turn_started", iterator: result.iterator };
+  }
+  if (result.status === "unavailable") {
+    // The active turn is never canceled for a steer intent. Queue the prompt for
+    // delivery once the turn ends instead — the daemon drains it from idle state.
+    const fallback = options.queueSteerFallback;
+    if (!fallback) {
+      logger.error(
+        { agentId },
+        "Steer was unavailable and no queue fallback was configured; prompt dropped",
+      );
+      return { disposition: "queued_fallback" };
+    }
+    const { text, attachments, droppedImages } = extractQueueableContent(prompt);
+    if (droppedImages) {
+      logger.warn({ agentId }, "Dropped image attachment queuing a steer that could not deliver");
+    }
+    await fallback.queueStore.enqueue({
+      agentId,
+      text,
+      attachments,
+      createdByClientId: fallback.createdByClientId,
+    });
+    return { disposition: "queued_fallback" };
   }
   return null;
 }
@@ -135,8 +183,8 @@ async function startAgentRunInner(
   options?: StartAgentRunOptions,
 ): Promise<{ disposition: PromptDispatchDisposition }> {
   const snapshot = agentManager.getAgent(agentId);
-  const steered = await steerOrReplaceActiveRun(agentManager, agentId, prompt, options);
-  if (steered?.disposition === "steered") {
+  const steered = await steerOrReplaceActiveRun(agentManager, agentId, prompt, options, logger);
+  if (steered?.disposition === "steered" || steered?.disposition === "queued_fallback") {
     return steered;
   }
   const { iterator, replaced } = steered
@@ -240,6 +288,11 @@ export interface SendPromptToAgentParams {
   unarchive?: boolean;
   /** See {@link StartAgentRunOptions.clearPendingPermissions}. */
   clearPendingPermissions?: boolean;
+  /**
+   * Attributes a prompt the daemon queues after an unavailable steer to the client that
+   * sent it. Defaults to {@link SYSTEM_QUEUE_CLIENT_ID} for system-injected prompts.
+   */
+  createdByClientId?: string;
   logger: Logger;
 }
 
@@ -335,6 +388,10 @@ export async function sendPromptToAgent(
     activeTurnBehavior: params.activeTurnBehavior,
     clearPendingPermissions: params.clearPendingPermissions,
     runOptions,
+    queueSteerFallback: {
+      queueStore: params.agentStorage.queueStore,
+      createdByClientId: params.createdByClientId ?? SYSTEM_QUEUE_CLIENT_ID,
+    },
   });
 }
 

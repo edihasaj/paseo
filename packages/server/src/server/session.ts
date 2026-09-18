@@ -55,6 +55,7 @@ import {
   sendPromptToAgent,
   waitForAgentRunStartWithTimeout,
   unarchiveAgentState,
+  type PromptDispatchDisposition,
 } from "./agent/agent-prompt.js";
 import {
   resolveCreateAgentTitles,
@@ -8188,6 +8189,7 @@ export class Session {
         throw new Error("Agent not found");
       }
       let prompt = null;
+      let dispatch: PromptDispatchDisposition | null = null;
       switch (msg.type) {
         case "agent.queue.create.request":
           prompt = await this.agentStorage.queueStore.enqueue({
@@ -8215,16 +8217,27 @@ export class Session {
           const queued = await this.agentStorage.queueStore.take(msg.agentId, msg.promptId);
           if (!queued) break;
           try {
-            await sendPromptToAgent({
+            const result = await sendPromptToAgent({
               agentManager: this.agentManager,
               agentStorage: this.agentStorage,
               agentId: msg.agentId,
               prompt: buildAgentPrompt(queued.text, undefined, queued.attachments),
-              activeTurnBehavior: "interrupt",
+              // Defaults to "interrupt" so an old client that never sends this field keeps
+              // its exact prior behavior. "steer" tries to admit into the active turn first;
+              // an unavailable steer lands back in the queue instead of canceling that turn.
+              activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
               clearPendingPermissions: true,
+              createdByClientId: this.clientId,
               logger: this.sessionLogger,
             });
-            prompt = queued;
+            dispatch = result.disposition;
+            // A steer that couldn't be admitted lands back in the queue as a fresh entry
+            // (see `sendPromptToAgent`'s queue fallback) rather than under `queued`'s
+            // original id, so don't report it as the dispatched prompt here — the
+            // refreshed `prompts` list below reflects where it actually landed.
+            if (dispatch !== "queued_fallback") {
+              prompt = queued;
+            }
           } catch (error) {
             await this.agentStorage.queueStore.restoreFront(queued);
             throw error;
@@ -8242,6 +8255,7 @@ export class Session {
           agentId: msg.agentId,
           prompts,
           ...(prompt ? { prompt } : {}),
+          ...(dispatch ? { dispatch } : {}),
           error: null,
         },
       });
@@ -8382,6 +8396,7 @@ export class Session {
         },
         "agent.session.send_agent_message",
       );
+      let dispatch: PromptDispatchDisposition | null = null;
       const send = async () => {
         const result = await sendPromptToAgent({
           agentManager: this.agentManager,
@@ -8391,8 +8406,10 @@ export class Session {
           messageId: msg.messageId,
           activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
           clearPendingPermissions: true,
+          createdByClientId: this.clientId,
           logger: this.sessionLogger,
         });
+        dispatch = result.disposition;
         if (result.disposition === "turn_started") {
           await waitForAgentRunStartWithTimeout(
             this.agentManager,
@@ -8421,6 +8438,7 @@ export class Session {
           requestId: msg.requestId,
           agentId,
           accepted: true,
+          dispatch,
           error: null,
         },
       });
